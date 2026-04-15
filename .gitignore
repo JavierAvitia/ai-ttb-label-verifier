@@ -223,10 +223,17 @@ venv.bak/
 EasyOCR/
 
 # Project-specific temporary files
-*.csv          # Generated results (commit only intentional ones if needed)
+# (inline comments are not valid in .gitignore — they would match literally)
+*.csv
 output/
 results/
 *.log
+
+# Sample label images (AI-generated, large, regenerated locally)
+sample_labels/*.jpg
+sample_labels/*.jpeg
+sample_labels/*.png
+sample_labels/*.webp
 
 # OS / Editor
 .DS_Store
