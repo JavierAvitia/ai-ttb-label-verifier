@@ -1,0 +1,178 @@
+{
+  "perfect_label.jpg": {
+    "expected": {
+      "brand": "OLD TOM DISTILLERY",
+      "class_type": "Kentucky Straight Bourbon Whiskey",
+      "abv": "45%",
+      "net_contents": "750 mL",
+      "producer": "Old Tom Distillery, Louisville, KY",
+      "country_of_origin": "",
+      "check_warning": true
+    },
+    "ground_truth": {
+      "brand_present": true,
+      "class_type_present": true,
+      "abv_value": 45.0,
+      "net_contents_value": 750.0,
+      "net_contents_unit": "ml",
+      "producer_present": true,
+      "warning_present": true,
+      "warning_caps_ok": true,
+      "expected_verdict": "APPROVE"
+    }
+  },
+  "angled_glare.jpg": {
+    "expected": {
+      "brand": "OLD TOM DISTILLERY",
+      "class_type": "Kentucky Straight Bourbon Whiskey",
+      "abv": "45%",
+      "net_contents": "750 mL",
+      "producer": "Old Tom Distillery, Louisville, KY",
+      "country_of_origin": "",
+      "check_warning": true
+    },
+    "ground_truth": {
+      "brand_present": true,
+      "class_type_present": true,
+      "abv_value": 45.0,
+      "net_contents_value": 750.0,
+      "net_contents_unit": "ml",
+      "producer_present": true,
+      "warning_present": true,
+      "warning_caps_ok": true,
+      "expected_verdict": "REVIEW"
+    }
+  },
+  "warning_violation_titlecase.jpg": {
+    "expected": {
+      "brand": "OLD TOM DISTILLERY",
+      "class_type": "Kentucky Straight Bourbon Whiskey",
+      "abv": "45%",
+      "net_contents": "750 mL",
+      "producer": "Old Tom Distillery, Louisville, KY",
+      "country_of_origin": "",
+      "check_warning": true
+    },
+    "ground_truth": {
+      "brand_present": true,
+      "class_type_present": true,
+      "abv_value": 45.0,
+      "net_contents_value": 750.0,
+      "net_contents_unit": "ml",
+      "producer_present": true,
+      "warning_present": true,
+      "warning_caps_ok": false,
+      "expected_verdict": "REVIEW"
+    }
+  },
+  "brand_caps_mismatch.jpg": {
+    "expected": {
+      "brand": "STONE'S THROW",
+      "class_type": "California Red Wine",
+      "abv": "13.5%",
+      "net_contents": "750 mL",
+      "producer": "Stone's Throw Vineyards, Napa, CA",
+      "country_of_origin": "",
+      "check_warning": true
+    },
+    "ground_truth": {
+      "brand_present": true,
+      "class_type_present": true,
+      "abv_value": 13.5,
+      "net_contents_value": 750.0,
+      "net_contents_unit": "ml",
+      "producer_present": true,
+      "warning_present": true,
+      "warning_caps_ok": true,
+      "expected_verdict": "APPROVE"
+    }
+  },
+  "low_contrast.jpg": {
+    "expected": {
+      "brand": "OLD TOM DISTILLERY",
+      "class_type": "Kentucky Straight Bourbon Whiskey",
+      "abv": "45%",
+      "net_contents": "750 mL",
+      "producer": "Old Tom Distillery, Louisville, KY",
+      "country_of_origin": "",
+      "check_warning": true
+    },
+    "ground_truth": {
+      "brand_present": true,
+      "class_type_present": true,
+      "abv_value": 45.0,
+      "net_contents_value": 750.0,
+      "net_contents_unit": "ml",
+      "producer_present": true,
+      "warning_present": true,
+      "warning_caps_ok": true,
+      "expected_verdict": "REVIEW"
+    }
+  },
+  "stylized_font.jpg": {
+    "expected": {
+      "brand": "BLACKWOOD RESERVE",
+      "class_type": "Single Malt Scotch Whisky",
+      "abv": "43%",
+      "net_contents": "750 mL",
+      "producer": "Blackwood Distillers, Speyside, Scotland",
+      "country_of_origin": "Scotland",
+      "check_warning": true
+    },
+    "ground_truth": {
+      "brand_present": true,
+      "class_type_present": true,
+      "abv_value": 43.0,
+      "net_contents_value": 750.0,
+      "net_contents_unit": "ml",
+      "producer_present": true,
+      "warning_present": true,
+      "warning_caps_ok": true,
+      "expected_verdict": "REVIEW"
+    }
+  },
+  "imported_wine.jpg": {
+    "expected": {
+      "brand": "CHATEAU LUMIERE",
+      "class_type": "Bordeaux Red Wine",
+      "abv": "13.5%",
+      "net_contents": "750 mL",
+      "producer": "Imported by Lumiere Imports LLC, New York, NY",
+      "country_of_origin": "France",
+      "check_warning": true
+    },
+    "ground_truth": {
+      "brand_present": true,
+      "class_type_present": true,
+      "abv_value": 13.5,
+      "net_contents_value": 750.0,
+      "net_contents_unit": "ml",
+      "producer_present": true,
+      "warning_present": true,
+      "warning_caps_ok": true,
+      "expected_verdict": "APPROVE"
+    }
+  },
+  "missing_warning.jpg": {
+    "expected": {
+      "brand": "RED HARVEST LAGER",
+      "class_type": "American Lager Beer",
+      "abv": "5.0%",
+      "net_contents": "12 fl oz",
+      "producer": "Red Harvest Brewing Co., Portland, OR",
+      "country_of_origin": "",
+      "check_warning": true
+    },
+    "ground_truth": {
+      "brand_present": true,
+      "class_type_present": true,
+      "abv_value": 5.0,
+      "net_contents_value": 12.0,
+      "net_contents_unit": "fl oz",
+      "producer_present": true,
+      "warning_present": false,
+      "warning_caps_ok": false,
+      "expected_verdict": "REJECT"
+    }
+  }
+}
