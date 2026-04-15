@@ -1,0 +1,16 @@
+# Lightweight visual polish for the verifier UI.
+# Kept to a single accent color and a clean light theme — the goal is
+# legibility and zero training, not branding.
+
+[theme]
+primaryColor = "#7c3aed"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f5f5f7"
+textColor = "#1f2328"
+font = "sans serif"
+
+[server]
+maxUploadSize = 50
+
+[browser]
+gatherUsageStats = false

@@ -1,0 +1,348 @@
+"""
+Streamlit UI for the TTB Alcohol Label Verifier.
+
+Layout:
+    Sidebar  — application data form (brand, class/type, ABV, net contents,
+               producer/bottler, country of origin, beverage type,
+               warning check toggle).
+    Main     — drag-and-drop batch uploader + a 'Verify Labels' button.
+               Results render below, REJECT first, then REVIEW, then
+               APPROVE. Each result shows OCR confidence, per-field
+               side-by-side comparison, and a 'show raw OCR' expander.
+               A 'Download CSV' button at the bottom serializes the
+               full batch.
+
+Design notes:
+    * The sidebar form is pre-populated with a realistic bourbon example
+      so evaluators can click through with zero typing.
+    * Heavy resources (the EasyOCR Reader) are warmed up once on app
+      start and cached with @st.cache_resource.
+    * Batch processing runs OCR calls concurrently in a ThreadPoolExecutor.
+      EasyOCR releases the GIL during inference, so this gives a real
+      wall-clock speedup even on Streamlit Cloud's shared CPU.
+"""
+
+from __future__ import annotations
+
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from io import BytesIO
+
+import pandas as pd
+import streamlit as st
+from PIL import Image
+
+import ocr
+from matcher import (
+    VerificationResult,
+    extract_fields,
+    overall_verdict,
+    validate_fields,
+)
+from utils import (
+    BEVERAGE_TYPES,
+    STATUS_NOT_FOUND,
+    VERDICT_APPROVE,
+    VERDICT_REJECT,
+    VERDICT_REVIEW,
+    VERDICT_SEVERITY,
+    format_confidence,
+    get_match_emoji,
+    get_verdict_emoji,
+    results_to_csv,
+)
+
+
+st.set_page_config(
+    page_title="TTB Label Verifier",
+    page_icon="🍷",
+    layout="wide",
+)
+
+
+# ---------------------------------------------------------------------------
+# Cached resources
+# ---------------------------------------------------------------------------
+
+
+@st.cache_resource(show_spinner="Loading OCR model (one-time, ~30s)…")
+def _load_reader():
+    """Load the EasyOCR model exactly once per Streamlit process."""
+    ocr.warm_up()
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Processing
+# ---------------------------------------------------------------------------
+
+
+def process_single_label(
+    image_bytes: bytes,
+    image_name: str,
+    expected: dict,
+) -> VerificationResult:
+    """Run OCR + matching on a single image. Pure function (safe to thread)."""
+    t0 = time.perf_counter()
+    pil_img = Image.open(BytesIO(image_bytes))
+    ocr_result = ocr.extract_text(pil_img)
+    extracted = extract_fields(ocr_result["full_text"], ocr_result["lines"])
+    fields = validate_fields(extracted, expected)
+    verdict = overall_verdict(fields)
+    return VerificationResult(
+        image_name=image_name,
+        fields=fields,
+        overall_verdict=verdict,
+        ocr_confidence=ocr_result["avg_confidence"],
+        processing_time=time.perf_counter() - t0,
+        beverage_type=expected.get("beverage_type", ""),
+        raw_ocr_text=ocr_result["full_text"],
+    )
+
+
+def process_batch(uploaded_files, expected: dict) -> list[VerificationResult]:
+    """Process a list of UploadedFile objects in parallel, with a progress bar."""
+    payloads = [(f.read(), f.name) for f in uploaded_files]
+    total = len(payloads)
+    if total == 0:
+        return []
+    progress = st.progress(0.0, text=f"Processing 0 / {total}…")
+    results: list[VerificationResult] = []
+    # max_workers=4: a sensible default. EasyOCR releases the GIL during
+    # inference so we get real parallelism even on a single CPU.
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {
+            executor.submit(process_single_label, b, n, expected): n
+            for b, n in payloads
+        }
+        for fut in as_completed(futures):
+            try:
+                results.append(fut.result())
+            except Exception as exc:
+                # Don't let one bad file kill the whole batch.
+                name = futures[fut]
+                st.warning(f"Failed to process **{name}**: {exc}")
+            progress.progress(
+                len(results) / total,
+                text=f"Processing {len(results)} / {total}…",
+            )
+    progress.empty()
+    # Sort by severity so problems surface first.
+    results.sort(
+        key=lambda r: (VERDICT_SEVERITY.get(r.overall_verdict, 99), r.image_name)
+    )
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Rendering helpers
+# ---------------------------------------------------------------------------
+
+
+def _render_field_table(fields) -> None:
+    """Render the per-field comparison as a styled DataFrame."""
+    rows = []
+    for f in fields:
+        rows.append(
+            {
+                "": get_match_emoji(f.status),
+                "Field": f.field_name,
+                "Expected": f.expected or "—",
+                "Found on label": f.extracted or "—",
+                "Score": f"{f.score:.0f}%" if f.status != STATUS_NOT_FOUND or f.score else "—",
+                "Notes": f.notes,
+            }
+        )
+    df = pd.DataFrame(rows)
+    st.dataframe(df, hide_index=True, use_container_width=True)
+
+
+def _render_verdict_badge(verdict: str) -> str:
+    color = {
+        VERDICT_APPROVE: "#1f883d",
+        VERDICT_REVIEW: "#bf8700",
+        VERDICT_REJECT: "#cf222e",
+    }.get(verdict, "#6e7781")
+    return (
+        f"<span style='background-color:{color}; color:white; padding:4px 10px; "
+        f"border-radius:6px; font-weight:600;'>{get_verdict_emoji(verdict)} {verdict}</span>"
+    )
+
+
+def _render_result(result: VerificationResult, image_bytes_lookup: dict) -> None:
+    header = (
+        f"{get_verdict_emoji(result.overall_verdict)} **{result.image_name}** "
+        f"— OCR confidence: {format_confidence(result.ocr_confidence)} "
+        f"· {result.processing_time:.1f}s"
+    )
+    expanded_default = result.overall_verdict != VERDICT_APPROVE
+    with st.expander(header, expanded=expanded_default):
+        col_img, col_meta = st.columns([1, 3])
+        with col_img:
+            img_bytes = image_bytes_lookup.get(result.image_name)
+            if img_bytes:
+                st.image(img_bytes, use_container_width=True)
+        with col_meta:
+            st.markdown(_render_verdict_badge(result.overall_verdict), unsafe_allow_html=True)
+            if result.ocr_confidence and result.ocr_confidence < 0.70:
+                st.warning(
+                    "Low OCR confidence — image may be hard to read. "
+                    "Consider retaking the photo with better lighting "
+                    "and a straight-on angle."
+                )
+            if result.beverage_type:
+                st.caption(f"Beverage type: {result.beverage_type}")
+            _render_field_table(result.fields)
+            with st.expander("Show raw OCR text", expanded=False):
+                st.code(result.raw_ocr_text or "(no text recognized)", language=None)
+
+
+# ---------------------------------------------------------------------------
+# Sidebar — application data
+# ---------------------------------------------------------------------------
+
+
+def _sidebar_form() -> dict:
+    st.sidebar.title("Application Data")
+    st.sidebar.caption(
+        "These values come from the COLA application. They will be checked "
+        "against text extracted from each label image."
+    )
+    beverage_type = st.sidebar.selectbox(
+        "Beverage Type",
+        BEVERAGE_TYPES,
+        index=0,
+        help="Informational in this prototype. Type-specific rule "
+             "variations are noted as a future enhancement.",
+    )
+    brand = st.sidebar.text_input("Brand Name", value="OLD TOM DISTILLERY")
+    class_type = st.sidebar.text_input(
+        "Class / Type", value="Kentucky Straight Bourbon Whiskey",
+    )
+    abv = st.sidebar.text_input("Alcohol Content (ABV)", value="45%")
+    net_contents = st.sidebar.text_input("Net Contents", value="750 mL")
+    producer = st.sidebar.text_input(
+        "Producer / Bottler",
+        value="Old Tom Distillery, Louisville, KY",
+        help="Address lines are OCR-fragile — this field uses lower "
+             "fuzzy thresholds than the brand name.",
+    )
+    country = st.sidebar.text_input(
+        "Country of Origin",
+        value="",
+        help="Leave blank for domestic products. When populated, the "
+             "label must mention the country.",
+    )
+    check_warning = st.sidebar.checkbox(
+        "Verify Government Warning statement",
+        value=True,
+    )
+
+    st.sidebar.markdown("---")
+    st.sidebar.caption(
+        "Tip: drop multiple label photos in the main panel — the tool "
+        "processes them in parallel and surfaces problems first."
+    )
+
+    return {
+        "beverage_type": beverage_type,
+        "brand": brand.strip(),
+        "class_type": class_type.strip(),
+        "abv": abv.strip(),
+        "net_contents": net_contents.strip(),
+        "producer": producer.strip(),
+        "country_of_origin": country.strip(),
+        "check_warning": check_warning,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+
+def main() -> None:
+    expected = _sidebar_form()
+
+    st.title("🍷 TTB Alcohol Label Verifier")
+    st.markdown(
+        "Upload one or more label photos. The tool extracts text from each "
+        "image and compares it against the application data on the left, "
+        "field by field. **Failures and reviews appear first.**"
+    )
+
+    # Kick off model load (cached) early so the spinner is visible up front
+    # rather than on the first verify click.
+    _load_reader()
+
+    uploaded = st.file_uploader(
+        "Drop label images here (JPG, PNG; multiple files supported)",
+        type=["jpg", "jpeg", "png", "webp", "bmp", "tif", "tiff"],
+        accept_multiple_files=True,
+    )
+
+    col_btn, col_info = st.columns([1, 3])
+    with col_btn:
+        run = st.button("▶ Verify Labels", type="primary", use_container_width=True)
+    with col_info:
+        if uploaded:
+            st.caption(f"{len(uploaded)} image(s) ready.")
+        else:
+            st.caption("Awaiting label uploads…")
+
+    # Validate that at least one application field has been provided.
+    if run and not any(
+        expected[k] for k in ("brand", "class_type", "abv", "net_contents", "producer")
+    ):
+        st.error(
+            "Please fill in at least one application field on the left "
+            "(brand, class/type, ABV, net contents, or producer)."
+        )
+        return
+    if run and not uploaded:
+        st.error("Please upload at least one label image.")
+        return
+
+    if run:
+        # Stash bytes for thumbnail rendering in the result expanders.
+        image_bytes_lookup = {f.name: f.getvalue() for f in uploaded}
+        # Reset file pointers so process_batch can re-read.
+        for f in uploaded:
+            f.seek(0)
+        results = process_batch(uploaded, expected)
+
+        if not results:
+            st.warning("No results to show.")
+            return
+
+        # Summary tally.
+        tally = {VERDICT_APPROVE: 0, VERDICT_REVIEW: 0, VERDICT_REJECT: 0}
+        for r in results:
+            tally[r.overall_verdict] = tally.get(r.overall_verdict, 0) + 1
+        c1, c2, c3 = st.columns(3)
+        c1.metric("✅ Approve", tally.get(VERDICT_APPROVE, 0))
+        c2.metric("⚠️ Review", tally.get(VERDICT_REVIEW, 0))
+        c3.metric("❌ Reject", tally.get(VERDICT_REJECT, 0))
+
+        st.markdown("### Results")
+        st.caption("Sorted by severity — failures first.")
+        for result in results:
+            _render_result(result, image_bytes_lookup)
+
+        st.download_button(
+            "📥 Download batch results as CSV",
+            data=results_to_csv(results),
+            file_name="ttb_label_verification_results.csv",
+            mime="text/csv",
+        )
+
+    st.markdown("---")
+    st.caption(
+        "This tool is a first-pass filter to assist compliance agents — "
+        "not a final compliance authority. Agents retain judgment for "
+        "nuanced cases."
+    )
+
+
+if __name__ == "__main__":
+    main()
