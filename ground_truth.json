@@ -1,175 +1,135 @@
 {
   "perfect_label.jpg": {
+    "_notes": "STONE'S THROW IPA — sans-serif, GOVERNMENT WARNING in ALL CAPS, 12 FL OZ. Baseline happy path. ABV and producer aren't printed on this label so they're left blank in expected (matcher benignly skips unprovided fields). class_type='IPA' matches the 'IPA' printed below the brand.",
     "expected": {
-      "brand": "OLD TOM DISTILLERY",
-      "class_type": "Kentucky Straight Bourbon Whiskey",
-      "abv": "45%",
-      "net_contents": "750 mL",
-      "producer": "Old Tom Distillery, Louisville, KY",
+      "brand": "STONE'S THROW IPA",
+      "class_type": "IPA",
+      "abv": "",
+      "net_contents": "12 fl oz",
+      "producer": "",
       "country_of_origin": "",
       "check_warning": true
     },
     "ground_truth": {
-      "brand_present": true,
-      "class_type_present": true,
-      "abv_value": 45.0,
-      "net_contents_value": 750.0,
-      "net_contents_unit": "ml",
-      "producer_present": true,
       "warning_present": true,
       "warning_caps_ok": true,
       "expected_verdict": "APPROVE"
     }
   },
   "angled_glare.jpg": {
+    "_notes": "Same content as perfect_label but tilted ~20° with visible glare. Tests OpenCV preprocessing (CLAHE + deskew). Expected to APPROVE on the happy path; may fall to REVIEW if OCR confidence drops the brand below the strict-match threshold.",
     "expected": {
-      "brand": "OLD TOM DISTILLERY",
-      "class_type": "Kentucky Straight Bourbon Whiskey",
-      "abv": "45%",
-      "net_contents": "750 mL",
-      "producer": "Old Tom Distillery, Louisville, KY",
+      "brand": "STONE'S THROW IPA",
+      "class_type": "IPA",
+      "abv": "",
+      "net_contents": "12 fl oz",
+      "producer": "",
       "country_of_origin": "",
       "check_warning": true
     },
     "ground_truth": {
-      "brand_present": true,
-      "class_type_present": true,
-      "abv_value": 45.0,
-      "net_contents_value": 750.0,
-      "net_contents_unit": "ml",
-      "producer_present": true,
       "warning_present": true,
       "warning_caps_ok": true,
-      "expected_verdict": "REVIEW"
+      "expected_verdict": "APPROVE"
     }
   },
   "warning_violation_titlecase.jpg": {
+    "_notes": "Stone's Throw (serif, no IPA on the label). Warning header reads 'Government Warning:' in title case — this is the violation. Body otherwise correct. Expected verdict: REVIEW (only the warning fails the strict caps check).",
     "expected": {
-      "brand": "OLD TOM DISTILLERY",
-      "class_type": "Kentucky Straight Bourbon Whiskey",
-      "abv": "45%",
-      "net_contents": "750 mL",
-      "producer": "Old Tom Distillery, Louisville, KY",
+      "brand": "STONE'S THROW",
+      "class_type": "",
+      "abv": "",
+      "net_contents": "12 fl oz",
+      "producer": "",
       "country_of_origin": "",
       "check_warning": true
     },
     "ground_truth": {
-      "brand_present": true,
-      "class_type_present": true,
-      "abv_value": 45.0,
-      "net_contents_value": 750.0,
-      "net_contents_unit": "ml",
-      "producer_present": true,
       "warning_present": true,
       "warning_caps_ok": false,
       "expected_verdict": "REVIEW"
     }
   },
   "brand_caps_mismatch.jpg": {
+    "_notes": "Label brand prints as 'Stone's Throw' (title case); application form has 'STONE'S THROW' (all caps) — Dave's example. Fuzzy matcher should still match. Warning is correctly ALL CAPS.",
     "expected": {
       "brand": "STONE'S THROW",
-      "class_type": "California Red Wine",
-      "abv": "13.5%",
-      "net_contents": "750 mL",
-      "producer": "Stone's Throw Vineyards, Napa, CA",
+      "class_type": "",
+      "abv": "",
+      "net_contents": "12 fl oz",
+      "producer": "",
       "country_of_origin": "",
       "check_warning": true
     },
     "ground_truth": {
-      "brand_present": true,
-      "class_type_present": true,
-      "abv_value": 13.5,
-      "net_contents_value": 750.0,
-      "net_contents_unit": "ml",
-      "producer_present": true,
       "warning_present": true,
       "warning_caps_ok": true,
       "expected_verdict": "APPROVE"
     }
   },
   "low_contrast.jpg": {
+    "_notes": "STONE'S THROW IPA in very light gray on off-white paper. Severe OCR stress test. Expected verdict: REVIEW — OCR likely returns partial text and the brand match drops into the review band.",
     "expected": {
-      "brand": "OLD TOM DISTILLERY",
-      "class_type": "Kentucky Straight Bourbon Whiskey",
-      "abv": "45%",
-      "net_contents": "750 mL",
-      "producer": "Old Tom Distillery, Louisville, KY",
+      "brand": "STONE'S THROW IPA",
+      "class_type": "IPA",
+      "abv": "",
+      "net_contents": "12 fl oz",
+      "producer": "",
       "country_of_origin": "",
       "check_warning": true
     },
     "ground_truth": {
-      "brand_present": true,
-      "class_type_present": true,
-      "abv_value": 45.0,
-      "net_contents_value": 750.0,
-      "net_contents_unit": "ml",
-      "producer_present": true,
       "warning_present": true,
       "warning_caps_ok": true,
       "expected_verdict": "REVIEW"
     }
   },
   "stylized_font.jpg": {
+    "_notes": "Stone's Throw IPA brand rendered in elaborate connected cursive script. Tests OCR robustness on script fonts. Brand match likely scores in the REVIEW band.",
     "expected": {
-      "brand": "BLACKWOOD RESERVE",
-      "class_type": "Single Malt Scotch Whisky",
-      "abv": "43%",
-      "net_contents": "750 mL",
-      "producer": "Blackwood Distillers, Speyside, Scotland",
-      "country_of_origin": "Scotland",
+      "brand": "STONE'S THROW IPA",
+      "class_type": "IPA",
+      "abv": "",
+      "net_contents": "12 fl oz",
+      "producer": "",
+      "country_of_origin": "",
       "check_warning": true
     },
     "ground_truth": {
-      "brand_present": true,
-      "class_type_present": true,
-      "abv_value": 43.0,
-      "net_contents_value": 750.0,
-      "net_contents_unit": "ml",
-      "producer_present": true,
       "warning_present": true,
       "warning_caps_ok": true,
       "expected_verdict": "REVIEW"
     }
   },
   "imported_wine.jpg": {
+    "_notes": "CHÂTEAU DE LA PAIX, Bordeaux 2020. 'Imported by WineCo, NY', 13.5% alc/vol. Net contents prints as '90 ml' on the label (looks like an AI artifact for '750 ml'); the matcher correctly flags this as a mismatch when the form says 750 mL. The front label has no GOVERNMENT WARNING visible — typically warnings sit on the back label. Expected verdict: REJECT (missing warning + net contents mismatch).",
     "expected": {
-      "brand": "CHATEAU LUMIERE",
-      "class_type": "Bordeaux Red Wine",
+      "brand": "CHÂTEAU DE LA PAIX",
+      "class_type": "Bordeaux",
       "abv": "13.5%",
       "net_contents": "750 mL",
-      "producer": "Imported by Lumiere Imports LLC, New York, NY",
+      "producer": "Imported by WineCo, NY",
       "country_of_origin": "France",
       "check_warning": true
     },
     "ground_truth": {
-      "brand_present": true,
-      "class_type_present": true,
-      "abv_value": 13.5,
-      "net_contents_value": 750.0,
-      "net_contents_unit": "ml",
-      "producer_present": true,
-      "warning_present": true,
-      "warning_caps_ok": true,
-      "expected_verdict": "APPROVE"
+      "warning_present": false,
+      "warning_caps_ok": false,
+      "expected_verdict": "REJECT"
     }
   },
   "missing_warning.jpg": {
+    "_notes": "LOCAL CRAFT BEER — generic brand, hop logo, 12 FL OZ. No GOVERNMENT WARNING block at all. Defining test for the 'required field absent' detection. Expected verdict: REJECT.",
     "expected": {
-      "brand": "RED HARVEST LAGER",
-      "class_type": "American Lager Beer",
-      "abv": "5.0%",
+      "brand": "LOCAL CRAFT BEER",
+      "class_type": "",
+      "abv": "",
       "net_contents": "12 fl oz",
-      "producer": "Red Harvest Brewing Co., Portland, OR",
+      "producer": "",
       "country_of_origin": "",
       "check_warning": true
     },
     "ground_truth": {
-      "brand_present": true,
-      "class_type_present": true,
-      "abv_value": 5.0,
-      "net_contents_value": 12.0,
-      "net_contents_unit": "fl oz",
-      "producer_present": true,
       "warning_present": false,
       "warning_caps_ok": false,
       "expected_verdict": "REJECT"

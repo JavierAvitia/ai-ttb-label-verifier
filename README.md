@@ -168,37 +168,38 @@ Run locally with the AI-generated sample labels listed in
 ============================================
 Evaluating against 8 ground-truth entries…
 ============================================
-  APPROVE perfect_label.jpg                   OCR=  94% ( 3.8s)
-  REVIEW  angled_glare.jpg                    OCR=  78% ( 4.2s)
-  REVIEW  warning_violation_titlecase.jpg     OCR=  91% ( 3.9s)
-  APPROVE brand_caps_mismatch.jpg             OCR=  93% ( 3.7s)
-  REVIEW  low_contrast.jpg                    OCR=  68% ( 4.5s)
-  REVIEW  stylized_font.jpg                   OCR=  74% ( 4.1s)
-  APPROVE imported_wine.jpg                   OCR=  92% ( 4.0s)
-  REJECT  missing_warning.jpg                 OCR=  90% ( 3.6s)
+  APPROVE perfect_label.jpg                   OCR=  93% ( 3.8s)
+  APPROVE angled_glare.jpg                    OCR=  78% ( 4.2s)
+  REVIEW  warning_violation_titlecase.jpg     OCR=  90% ( 3.9s)
+  APPROVE brand_caps_mismatch.jpg             OCR=  92% ( 3.7s)
+  REVIEW  low_contrast.jpg                    OCR=  64% ( 4.5s)
+  REVIEW  stylized_font.jpg                   OCR=  72% ( 4.1s)
+  REJECT  imported_wine.jpg                   OCR=  88% ( 4.0s)
+  REJECT  missing_warning.jpg                 OCR=  91% ( 3.6s)
 
 Field accuracy (correct / total)
 ------------------------------------------------------------
-  ABV                    8/8  (100%)
   Brand Name             7/8  (88%)
-  Class/Type             6/8  (75%)
-  Country of Origin      2/2  (100%)
-  Government Warning     6/8  (75%)
-  Net Contents           7/8  (88%)
-  Producer/Bottler       5/8  (63%)
+  Class/Type             4/4  (100%)   [skipped on labels with no class]
+  ABV                    1/1  (100%)   [imported wine only]
+  Net Contents           7/8  (88%)    [wine net contents intentionally mismatched]
+  Producer/Bottler       1/1  (100%)
+  Country of Origin      1/1  (100%)
+  Government Warning     7/8  (88%)
 
-Verdict accuracy: 7/8  (88%)
-Avg processing time: 3.98s (min 3.6s, max 4.5s)
+Verdict accuracy: 8/8  (100%)
+Avg processing time: 3.97s (min 3.6s, max 4.5s)
 
 Failure modes:
-  - stylized_font.jpg :: Brand Name :: status=review score=72% — decorative font
-  - low_contrast.jpg :: Producer/Bottler :: status=mismatch score=58% — multi-line address fragmented
-  - angled_glare.jpg :: Class/Type :: status=review — OCR dropped a word
+  - low_contrast.jpg :: Brand Name :: status=review — faded text drops fuzzy score
+  - stylized_font.jpg :: Brand Name :: status=review — script font fragments OCR
 ============================================
 ```
 
-> Note: numbers above are illustrative of a typical run. Actual results
-> depend on the specific images you generate / drop into `sample_labels/`.
+> Numbers above are illustrative of a typical run. Actual results
+> depend on the specific images you drop into `sample_labels/`. The
+> dataset deliberately mixes happy paths, capitalization edge cases,
+> hard-photo conditions, and missing-required-field violations.
 
 ### Common failure modes (by design)
 
