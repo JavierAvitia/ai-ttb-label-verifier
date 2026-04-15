@@ -205,3 +205,31 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Streamlit specific
+.streamlit/secrets.toml
+
+# EasyOCR model cache (downloads ~100MB+ on first run - never commit)
+~/.EasyOCR/
+EasyOCR/
+
+# Project-specific temporary files
+*.csv          # Generated results (commit only intentional ones if needed)
+output/
+results/
+*.log
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
