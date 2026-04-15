@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import statistics
 import sys
 import time
@@ -29,14 +28,37 @@ from matcher import (
     overall_verdict,
     validate_fields,
 )
-from utils import (
-    STATUS_MATCH,
-    STATUS_NOT_FOUND,
-    STATUS_REVIEW,
-    VERDICT_APPROVE,
-    VERDICT_REJECT,
-    VERDICT_REVIEW,
-)
+from utils import STATUS_MATCH, STATUS_REVIEW
+
+
+# Image extensions we'll auto-discover. Lets ground_truth.json reference
+# `perfect_label.jpg` even when the actual file on disk is `perfect_label.png`
+# (or .jpeg, .webp, etc.) — keeps the harness working regardless of how the
+# AI image generator decided to name its outputs.
+_IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff")
+
+
+def _resolve_image(sample_dir: Path, image_name: str) -> Path | None:
+    """Find the image on disk for a given ground-truth key.
+
+    Tries the literal filename first; if that's missing, falls back to
+    matching by stem against any supported extension. Returns None if
+    nothing matches.
+    """
+    literal = sample_dir / image_name
+    if literal.exists():
+        return literal
+    stem = Path(image_name).stem
+    for ext in _IMAGE_EXTS:
+        candidate = sample_dir / f"{stem}{ext}"
+        if candidate.exists():
+            return candidate
+    # Last-ditch: case-insensitive scan (handles e.g. PERFECT_LABEL.PNG).
+    stem_lower = stem.lower()
+    for path in sample_dir.iterdir():
+        if path.is_file() and path.stem.lower() == stem_lower and path.suffix.lower() in _IMAGE_EXTS:
+            return path
+    return None
 
 
 def _field_matched(field_name: str, status: str, ground_truth: dict) -> bool:
@@ -87,11 +109,14 @@ def evaluate(sample_dir: Path, ground_truth_path: Path) -> int:
     print("=" * 60)
 
     for image_name, entry in truth_data.items():
-        path = sample_dir / image_name
-        if not path.exists():
-            print(f"  SKIP  {image_name}  (file not present in {sample_dir})")
+        path = _resolve_image(sample_dir, image_name)
+        if path is None:
+            print(f"  SKIP  {image_name}  (no matching file in {sample_dir})")
             images_skipped += 1
             continue
+        # If the discovered file's name differs (e.g. ground truth says
+        # `.jpg` but disk has `.png`), surface the actual filename in output.
+        display_name = path.name if path.name != image_name else image_name
         expected = entry["expected"]
         gt = entry["ground_truth"]
         try:
@@ -115,7 +140,7 @@ def evaluate(sample_dir: Path, ground_truth_path: Path) -> int:
                 field_correct[f.field_name] += 1
             else:
                 failure_modes.append(
-                    f"{image_name} :: {f.field_name} :: status={f.status} "
+                    f"{display_name} :: {f.field_name} :: status={f.status} "
                     f"score={f.score:.0f}% :: {f.notes}"
                 )
 
@@ -125,7 +150,7 @@ def evaluate(sample_dir: Path, ground_truth_path: Path) -> int:
             verdict_correct += 1
 
         print(
-            f"  {verdict:<7} {image_name:<35} "
+            f"  {verdict:<7} {display_name:<35} "
             f"OCR={ocr_result['avg_confidence']*100:>4.0f}% "
             f"({elapsed:>4.1f}s)"
         )
