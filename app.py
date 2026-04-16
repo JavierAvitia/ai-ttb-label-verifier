@@ -172,26 +172,24 @@ def process_single_label(
     )
 
 
-def process_batch(uploaded_files, expected: dict) -> list[VerificationResult]:
-    """Process a list of UploadedFile objects in parallel, with a progress bar."""
-    payloads = [(f.read(), f.name) for f in uploaded_files]
+def _process_payloads(
+    payloads: list[tuple[str, bytes]], expected: dict,
+) -> list[VerificationResult]:
+    """Process (name, bytes) pairs in parallel with a progress bar."""
     total = len(payloads)
     if total == 0:
         return []
     progress = st.progress(0.0, text=f"Processing 0 / {total}…")
     results: list[VerificationResult] = []
-    # max_workers=4: a sensible default. EasyOCR releases the GIL during
-    # inference so we get real parallelism even on a single CPU.
     with ThreadPoolExecutor(max_workers=4) as executor:
         futures = {
             executor.submit(process_single_label, b, n, expected): n
-            for b, n in payloads
+            for n, b in payloads
         }
         for fut in as_completed(futures):
             try:
                 results.append(fut.result())
             except Exception as exc:
-                # Don't let one bad file kill the whole batch.
                 name = futures[fut]
                 st.warning(f"Failed to process **{name}**: {exc}")
             progress.progress(
@@ -199,7 +197,6 @@ def process_batch(uploaded_files, expected: dict) -> list[VerificationResult]:
                 text=f"Processing {len(results)} / {total}…",
             )
     progress.empty()
-    # Sort by severity so problems surface first.
     results.sort(
         key=lambda r: (VERDICT_SEVERITY.get(r.overall_verdict, 99), r.image_name)
     )
@@ -384,20 +381,20 @@ def main() -> None:
 
     if run:
         st.session_state["processing"] = True
-        # Stash bytes for thumbnail rendering in the result expanders.
-        image_bytes_lookup = {f.name: f.getvalue() for f in uploaded}
-        # Reset file pointers so process_batch can re-read.
-        for f in uploaded:
-            f.seek(0)
-        results = process_batch(uploaded, expected)
+        st.session_state["pending_bytes"] = {f.name: f.getvalue() for f in uploaded}
+        st.session_state["pending_expected"] = expected
+        st.rerun()
+
+    if is_processing:
+        pending_bytes = st.session_state.pop("pending_bytes", {})
+        pending_expected = st.session_state.pop("pending_expected", expected)
+        payloads = list(pending_bytes.items())
+        if payloads:
+            results_list = _process_payloads(payloads, pending_expected)
+            st.session_state["results"] = results_list
+            st.session_state["image_bytes_lookup"] = pending_bytes
         st.session_state["processing"] = False
-
-        if not results:
-            st.warning("No results to show.")
-            return
-
-        st.session_state["results"] = results
-        st.session_state["image_bytes_lookup"] = image_bytes_lookup
+        st.rerun()
 
     results = st.session_state.get("results")
     image_bytes_lookup = st.session_state.get("image_bytes_lookup", {})
