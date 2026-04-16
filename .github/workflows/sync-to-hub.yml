@@ -1,34 +1,21 @@
 name: Sync to Hugging Face Hub
-
 on:
   push:
     branches: [main]
+  # Allows manual triggers from the Actions tab
   workflow_dispatch:
 
 jobs:
   sync:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           lfs: true
-
-      - name: Install Git LFS
-        run: git lfs install
-
-      - name: Install Hugging Face CLI
-        run: pip install huggingface_hub
-
-      - name: Login to Hugging Face
-        run: huggingface-cli login --token ${{ secrets.HF_TOKEN }}
-
-      - name: Push to Hugging Face Hub
-        run: |
-          git config --global user.email "you@example.com"
-          git config --global user.name "GitHub Actions"
-
-          git remote add hf https://huggingface.co/javieravitia/ai-ttb-label-verifier || true
-          git push hf main --force
+      - name: Sync to Hugging Face
+        uses: huggingface/hub-sync@main
+        with:
+          github_repo_id: javieravitia/ai-ttb-label-verifier
+          huggingface_repo_id: javieravitia/ai-ttb-label-verifier
+          hf_token: ${{ secrets.HF_TOKEN }}
