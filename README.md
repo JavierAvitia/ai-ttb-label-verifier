@@ -36,7 +36,7 @@ It directly addresses the stakeholder concerns from the project brief:
 
 | Layer | Choice | Why |
 |---|---|---|
-| **Language** | Python 3.10+ | Single ecosystem covers OCR + matching + UI |
+| **Language** | Python 3.11+ | Single ecosystem covers OCR + matching + UI |
 | **UI** | Streamlit | Zero training; built-in batch upload, expanders, progress bars; no frontend build |
 | **OCR** | EasyOCR | Self-contained, no API keys, no outbound traffic — sidesteps the firewall problem that killed the prior vendor pilot |
 | **Preprocessing** | OpenCV (headless) | CLAHE + Gaussian blur + optional deskew handles glare, angles, low contrast |
@@ -75,7 +75,8 @@ It directly addresses the stakeholder concerns from the project brief:
 - **OCR confidence per image** — surfaced in the result header; a warning
   appears when confidence drops below 70%.
 - **Government warning check** — verifies textual presence, ALL CAPS
-  header, and ≥90% body match to the official statement.
+  header, and ≥45% body match to the official statement (calibrated
+  to catch OCR-fragmented text while filtering noise).
 - **Beverage type selector** — Distilled Spirits / Wine / Beer; included
   in CSV output (informational in the prototype).
 - **CSV export** — flattened one-row-per-field; opens cleanly in Excel.
