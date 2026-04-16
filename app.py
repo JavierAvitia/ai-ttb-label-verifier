@@ -65,16 +65,16 @@ st.markdown(
     <style>
     /* --- Layered surfaces: expanders, sidebar, metric cards --- */
     [data-testid="stExpander"] {
-        background: #1C1C1E;
+        background: var(--secondary-background-color);
         border: 1px solid rgba(212, 160, 23, 0.15);
         border-radius: 12px;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
     }
     section[data-testid="stSidebar"] > div {
         border-right: 1px solid rgba(212, 160, 23, 0.12);
     }
 
-    /* --- Typography: bolder text on dark backgrounds --- */
+    /* --- Typography: bolder text --- */
     [data-testid="stExpander"] summary span {
         font-weight: 600 !important;
     }
@@ -82,13 +82,13 @@ st.markdown(
         font-weight: 700 !important;
     }
 
-    /* --- Light text inside forced-dark expander (fixes light-mode contrast) --- */
+    /* --- Theme-aware expander text (follows light/dark mode) --- */
     [data-testid="stExpander"] summary,
     [data-testid="stExpander"] summary *,
     [data-testid="stExpander"] [data-testid="stCaptionContainer"],
     [data-testid="stExpander"] [data-testid="stMarkdownContainer"] p,
     [data-testid="stExpander"] [data-testid="stCheckbox"] label {
-        color: #EAEAEA !important;
+        color: var(--text-color) !important;
     }
 
     /* --- Upload drop zone: amber dashed border --- */
@@ -135,8 +135,8 @@ st.markdown(
         background-color: rgba(212, 160, 23, 0.2) !important;
     }
     [data-baseweb="popover"] [data-baseweb="menu"] {
-        background-color: #1A1A1C !important;
-        border: 1px solid #333 !important;
+        background-color: var(--secondary-background-color) !important;
+        border: 1px solid rgba(128, 128, 128, 0.25) !important;
     }
 
     /* --- Spacing & polish --- */
