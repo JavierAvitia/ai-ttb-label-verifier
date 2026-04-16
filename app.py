@@ -115,9 +115,8 @@ st.markdown(
         border-radius: 8px;
     }
 
-    /* --- Checkbox label: ensure visibility on dark backgrounds --- */
+    /* --- Checkbox label: bolder for readability --- */
     [data-testid="stCheckbox"] label span {
-        color: #EAEAEA !important;
         font-weight: 500 !important;
     }
 
