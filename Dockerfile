@@ -1,6 +1,6 @@
-# Dockerfile for deploying the TTB Label Verifier on container hosts
-# (Render.com, Railway, Fly.io, etc.). The base image carries the
-# system libraries OpenCV needs (libGL, libglib).
+# Dockerfile for deploying the TTB Label Verifier on container hosts.
+# EasyOCR models are pre-cached during the build so containers start
+# without downloading ~150 MB of models at runtime.
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -19,6 +19,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+RUN python -c "import easyocr; easyocr.Reader(['en'], gpu=False, verbose=False)"
 
 COPY . .
 
