@@ -82,6 +82,15 @@ st.markdown(
         font-weight: 700 !important;
     }
 
+    /* --- Light text inside forced-dark expander (fixes light-mode contrast) --- */
+    [data-testid="stExpander"] summary,
+    [data-testid="stExpander"] summary *,
+    [data-testid="stExpander"] [data-testid="stCaptionContainer"],
+    [data-testid="stExpander"] [data-testid="stMarkdownContainer"] p,
+    [data-testid="stExpander"] [data-testid="stCheckbox"] label {
+        color: #EAEAEA !important;
+    }
+
     /* --- Upload drop zone: amber dashed border --- */
     [data-testid="stFileUploader"] section {
         border: 2px dashed rgba(212, 160, 23, 0.4) !important;
