@@ -193,7 +193,7 @@ def _render_result(result: VerificationResult, image_bytes_lookup: dict) -> None
             if result.beverage_type:
                 st.caption(f"Beverage type: {result.beverage_type}")
             _render_field_table(result.fields)
-            with st.expander("Show raw OCR text", expanded=False):
+            if st.checkbox("Show raw OCR text", key=f"ocr_{result.image_name}"):
                 st.code(result.raw_ocr_text or "(no text recognized)", language=None)
 
 
