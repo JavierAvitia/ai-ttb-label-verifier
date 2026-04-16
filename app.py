@@ -191,7 +191,7 @@ def _process_payloads(
         return []
     progress = st.progress(0.0, text=f"Processing 0 / {total}…")
     results: list[VerificationResult] = []
-    with ThreadPoolExecutor(max_workers=2) as executor:
+    with ThreadPoolExecutor(max_workers=4) as executor:
         futures = {
             executor.submit(process_single_label, b, n, expected): n
             for n, b in payloads
