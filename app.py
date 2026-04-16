@@ -120,6 +120,16 @@ st.markdown(
         font-weight: 500 !important;
     }
 
+    /* --- Dropdown: selected/hover item contrast --- */
+    [data-baseweb="select"] [role="option"][aria-selected="true"],
+    [data-baseweb="select"] [role="option"]:hover {
+        background-color: rgba(212, 160, 23, 0.2) !important;
+    }
+    [data-baseweb="popover"] [data-baseweb="menu"] {
+        background-color: #1A1A1C !important;
+        border: 1px solid #333 !important;
+    }
+
     /* --- Spacing & polish --- */
     [data-testid="stImage"] {
         border-radius: 8px;
