@@ -219,7 +219,7 @@ venv.bak/
 .streamlit/secrets.toml
 
 # EasyOCR model cache (downloads ~100MB+ on first run - never commit)
-~/.EasyOCR/
+.EasyOCR/
 EasyOCR/
 
 # Project-specific temporary files
