@@ -1,7 +1,11 @@
-streamlit>=1.30
-easyocr>=1.7
-opencv-python-headless>=4.8
-Pillow>=10.0
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+streamlit==1.39.0
+easyocr==1.7.2
+torch==2.3.1+cpu
+torchvision==0.18.1+cpu
+numpy<2.0
+pillow==10.4.0
+opencv-python-headless==4.10.0.84
 rapidfuzz>=3.5
-numpy>=1.24
 pandas>=2.0
