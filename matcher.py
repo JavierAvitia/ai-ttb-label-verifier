@@ -508,7 +508,9 @@ def _check_warning(extracted: dict, ocr_line_count: int = 0) -> FieldResult:
         return FieldResult(
             "Government Warning", "Required statement present",
             snippet, body_score, STATUS_MATCH,
-            f"Header in ALL CAPS and body matches official text ({body_score:.0f}%)",
+            f"Header in ALL CAPS and body matches official text ({body_score:.0f}%). "
+            "Note: OCR verifies text and capitalization only — bold, font size, "
+            "and physical placement require visual review.",
         )
     if not caps_ok:
         return FieldResult(
