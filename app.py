@@ -102,6 +102,12 @@ st.markdown(
         transform: translateY(-1px);
         box-shadow: 0 4px 12px rgba(212, 160, 23, 0.3);
     }
+    button[kind="primary"][disabled], button[data-testid="stBaseButton-primary"][disabled] {
+        opacity: 0.45 !important;
+        cursor: not-allowed !important;
+        transform: none !important;
+        box-shadow: none !important;
+    }
 
     /* --- Low-OCR warning banner: warm amber left border --- */
     [data-testid="stAlert"] {
@@ -109,10 +115,28 @@ st.markdown(
         border-radius: 8px;
     }
 
+    /* --- Checkbox label: ensure visibility on dark backgrounds --- */
+    [data-testid="stCheckbox"] label span {
+        color: #EAEAEA !important;
+        font-weight: 500 !important;
+    }
+
     /* --- Spacing & polish --- */
     [data-testid="stImage"] {
         border-radius: 8px;
         overflow: hidden;
+    }
+
+    /* --- Light mode overrides --- */
+    @media (prefers-color-scheme: light) {
+        [data-testid="stExpander"] {
+            background: #FFFFFF;
+            border-color: rgba(212, 160, 23, 0.2);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        [data-testid="stCheckbox"] label span {
+            color: #2C2C2C !important;
+        }
     }
     </style>
     """,
@@ -341,9 +365,16 @@ def main() -> None:
         accept_multiple_files=True,
     )
 
+    is_processing = st.session_state.get("processing", False)
+
     col_btn, col_info = st.columns([1, 3])
     with col_btn:
-        run = st.button("▶ Verify Labels", type="primary", use_container_width=True)
+        run = st.button(
+            "⏳ Processing…" if is_processing else "▶ Verify Labels",
+            type="primary",
+            use_container_width=True,
+            disabled=is_processing,
+        )
     with col_info:
         if uploaded:
             st.caption(f"{len(uploaded)} image(s) ready.")
@@ -364,12 +395,14 @@ def main() -> None:
         return
 
     if run:
+        st.session_state["processing"] = True
         # Stash bytes for thumbnail rendering in the result expanders.
         image_bytes_lookup = {f.name: f.getvalue() for f in uploaded}
         # Reset file pointers so process_batch can re-read.
         for f in uploaded:
             f.seek(0)
         results = process_batch(uploaded, expected)
+        st.session_state["processing"] = False
 
         if not results:
             st.warning("No results to show.")
