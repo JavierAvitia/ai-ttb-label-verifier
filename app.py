@@ -60,6 +60,65 @@ st.set_page_config(
     layout="wide",
 )
 
+st.markdown(
+    """
+    <style>
+    /* --- Layered surfaces: expanders, sidebar, metric cards --- */
+    [data-testid="stExpander"] {
+        background: #1C1C1E;
+        border: 1px solid rgba(212, 160, 23, 0.15);
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    }
+    section[data-testid="stSidebar"] > div {
+        border-right: 1px solid rgba(212, 160, 23, 0.12);
+    }
+
+    /* --- Typography: bolder text on dark backgrounds --- */
+    [data-testid="stExpander"] summary span {
+        font-weight: 600 !important;
+    }
+    [data-testid="stMetricValue"] {
+        font-weight: 700 !important;
+    }
+
+    /* --- Upload drop zone: amber dashed border --- */
+    [data-testid="stFileUploader"] section {
+        border: 2px dashed rgba(212, 160, 23, 0.4) !important;
+        border-radius: 12px;
+        transition: border-color 0.2s ease;
+    }
+    [data-testid="stFileUploader"] section:hover {
+        border-color: rgba(212, 160, 23, 0.7) !important;
+    }
+
+    /* --- Buttons: smooth transitions --- */
+    button[kind="primary"], button[data-testid="stBaseButton-primary"] {
+        transition: all 0.2s ease !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+    }
+    button[kind="primary"]:hover, button[data-testid="stBaseButton-primary"]:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(212, 160, 23, 0.3);
+    }
+
+    /* --- Low-OCR warning banner: warm amber left border --- */
+    [data-testid="stAlert"] {
+        border-left: 4px solid #D4A017 !important;
+        border-radius: 8px;
+    }
+
+    /* --- Spacing & polish --- */
+    [data-testid="stImage"] {
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 # ---------------------------------------------------------------------------
 # Cached resources
