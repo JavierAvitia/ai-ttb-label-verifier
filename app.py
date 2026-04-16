@@ -224,7 +224,7 @@ def _render_field_table(fields) -> None:
     for f in fields:
         rows.append(
             {
-                "": get_match_emoji(f.status),
+                "Status": f"{get_match_emoji(f.status)} {f.status.replace('_', ' ').title()}",
                 "Field": f.field_name,
                 "Expected": f.expected or "—",
                 "Found on label": f.extracted or "—",
@@ -318,6 +318,17 @@ def _sidebar_form() -> dict:
     )
 
     st.sidebar.markdown("---")
+    with st.sidebar.expander("How it works"):
+        st.markdown(
+            "- **Fuzzy matching** handles capitalization and punctuation "
+            "differences (e.g. \"STONE'S THROW\" vs \"Stone's Throw\").\n"
+            "- This tool is a **first-pass filter** — agents retain final "
+            "judgment for nuanced cases.\n"
+            "- Images with low OCR confidence get a **retake suggestion** "
+            "(better lighting, straight-on angle).\n"
+            "- OCR verifies **text content and capitalization** only — bold, "
+            "font size, and physical placement require visual review."
+        )
     st.sidebar.caption(
         "Tip: drop multiple label photos in the main panel — the tool "
         "processes them in parallel and surfaces problems first."
