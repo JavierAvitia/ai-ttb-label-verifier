@@ -315,6 +315,13 @@ def main() -> None:
             st.warning("No results to show.")
             return
 
+        st.session_state["results"] = results
+        st.session_state["image_bytes_lookup"] = image_bytes_lookup
+
+    results = st.session_state.get("results")
+    image_bytes_lookup = st.session_state.get("image_bytes_lookup", {})
+
+    if results:
         # Summary tally.
         tally = {VERDICT_APPROVE: 0, VERDICT_REVIEW: 0, VERDICT_REJECT: 0}
         for r in results:
