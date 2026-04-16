@@ -411,8 +411,11 @@ def main() -> None:
         pending_expected = st.session_state.pop("pending_expected", expected)
         payloads = list(pending_bytes.items())
         if payloads:
+            t0 = time.perf_counter()
             results_list = _process_payloads(payloads, pending_expected)
+            elapsed = time.perf_counter() - t0
             st.session_state["results"] = results_list
+            st.session_state["batch_time"] = elapsed
             st.session_state["image_bytes_lookup"] = pending_bytes
         st.session_state["processing"] = False
         st.rerun()
@@ -425,10 +428,13 @@ def main() -> None:
         tally = {VERDICT_APPROVE: 0, VERDICT_REVIEW: 0, VERDICT_REJECT: 0}
         for r in results:
             tally[r.overall_verdict] = tally.get(r.overall_verdict, 0) + 1
-        c1, c2, c3 = st.columns(3)
+        batch_time = st.session_state.get("batch_time")
+        c1, c2, c3, c4 = st.columns(4)
         c1.metric("✅ Approve", tally.get(VERDICT_APPROVE, 0))
         c2.metric("⚠️ Review", tally.get(VERDICT_REVIEW, 0))
         c3.metric("❌ Reject", tally.get(VERDICT_REJECT, 0))
+        if batch_time is not None:
+            c4.metric("⏱ Total time", f"{batch_time:.1f}s")
 
         st.markdown("### Results")
         st.caption("Sorted by severity — failures first.")
