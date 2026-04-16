@@ -42,7 +42,7 @@ It directly addresses the stakeholder concerns from the project brief:
 | **Preprocessing** | OpenCV (headless) | CLAHE + Gaussian blur + optional deskew handles glare, angles, low contrast |
 | **Matching** | RapidFuzz + regex | Fuzzy for brand/class/producer; numeric comparison for ABV / net contents; presence + caps check for warning |
 | **Tabular display & export** | Pandas | Results tables and one-click CSV download |
-| **Deployment** | HuggingFace Spaces | 16 GB free RAM handles EasyOCR + PyTorch easily; native Streamlit SDK — just push and it runs |
+| **Deployment** | HuggingFace Spaces | CPU Upgrade tier (8 vCPU / 32 GB) for fast OCR inference; native Streamlit SDK — just push and it runs |
 
 ### Why *not* the alternatives
 
@@ -103,8 +103,9 @@ the model in seconds.
 HuggingFace Spaces is the recommended deployment path. EasyOCR +
 PyTorch CPU requires ~2 GB peak RAM during model loading — this
 exceeds the free tiers of Streamlit Cloud (1 GB) and Render (512 MB).
-HuggingFace Spaces provides 16 GB free RAM with native Streamlit
-SDK support, so the app runs without any code changes.
+The app runs on the CPU Upgrade tier (8 vCPU / 32 GB RAM) for fast
+batch inference, with native Streamlit SDK support and zero code
+changes required.
 
 1. Push this repo to GitHub.
 2. On [huggingface.co/spaces](https://huggingface.co/new-space) →
@@ -130,13 +131,15 @@ docker run -p 8501:8501 ttb-label-verifier
 ```
 
 A `Dockerfile` is included for environments where you need full
-control over system dependencies (on-prem, VPS, etc.).
+control over system dependencies (on-prem, VPS, etc.). EasyOCR
+models are pre-cached during the Docker build, so containers start
+instantly without downloading models at runtime.
 
 ### Why HuggingFace Spaces
 
 | Concern | Streamlit Cloud | Render.com free | HuggingFace Spaces |
 |---|---|---|---|
-| Free RAM | 1 GB — OOMs during model load | 512 MB — OOMs immediately | **16 GB** — plenty of headroom |
+| Resources | 1 GB RAM — OOMs during model load | 512 MB RAM — OOMs immediately | **8 vCPU / 32 GB** (CPU Upgrade) |
 | Streamlit support | Native | Docker only | **Native SDK** — zero config |
 | System dependencies | Mixed Debian base; apt conflicts | Dockerfile required | Pre-installed (libGL, etc.) |
 | Cold start | N/A (OOMs) | N/A (OOMs) | ~30–90s after sleep |
