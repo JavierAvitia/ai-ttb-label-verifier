@@ -119,7 +119,7 @@ cached layers.
 > inactivity. First visit after sleep takes 30–90 seconds while the
 > container restarts and OCR models reload.
 
-> Live URL: _add the deployed URL here once published._
+> **Live URL:** https://javieravitia-ai-ttb-label-verifier.hf.space
 
 ### Docker (local / self-hosted)
 
@@ -166,10 +166,11 @@ ai-ttb-label-verifier/
 ├── ground_truth.json   # Per-image expected values for evaluation
 ├── sample_labels/      # AI-generated test label images (realistic bottle photos)
 ├── requirements.txt
-├── runtime.txt         # Python 3.11 for Streamlit Cloud fallback
-├── Dockerfile          # Docker deploy (Render.com, Railway, etc.)
+├── runtime.txt         # Python version pin
+├── Dockerfile          # Docker deploy (local, VPS, etc.)
 ├── .dockerignore       # Keeps Docker context lean
-└── .streamlit/config.toml
+├── .streamlit/config.toml
+└── .github/workflows/  # GitHub Actions → HuggingFace Spaces sync
 ```
 
 Six Python files, each with a single responsibility. No `utils/`
