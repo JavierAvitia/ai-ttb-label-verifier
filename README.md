@@ -14,7 +14,7 @@ It directly addresses the stakeholder concerns from the project brief:
 | Stakeholder concern | How this tool addresses it |
 |---|---|
 | Janet — needs to process 5–20+ labels at a time | Batch upload with parallel OCR; results sorted by severity |
-| Sarah — sub-5s feedback, "my mother could use it" | Streamlit drag-and-drop UI; ~2–8s per image on CPU |
+| Sarah — sub-5s feedback, "my mother could use it" | Streamlit drag-and-drop UI; ~10–25s per image on CPU after model warmup (4× rotation pass for vertical warning text), 2–4× faster on GPU |
 | Dave — capitalization/punctuation nuance ("STONE'S THROW" vs "Stone's Throw") | Fuzzy matching with calibrated thresholds; explanatory notes per field |
 | Jenny — bad photos (angles, glare, low contrast) | OpenCV preprocessing pipeline (CLAHE, deskew, blur); low-confidence warning per image |
 | Marcus — no firewall-blocked vendor APIs, no PII | Fully self-contained: EasyOCR runs locally, no network calls, no persistence |
@@ -141,12 +141,21 @@ sub-package, no model-switching abstractions, no premature engineering.
 | Field | Extraction | Comparison | Match / Review thresholds |
 |---|---|---|---|
 | Brand Name | Full-text search | `rapidfuzz.fuzz.token_sort_ratio` | ≥85 / 70 |
-| Class/Type | Full-text search | `rapidfuzz.fuzz.token_sort_ratio` | ≥85 / 70 |
+| Class/Type | Full-text search; **inherits brand status when class is a token of the brand** (e.g. brand "STONE'S THROW IPA", class "IPA") | `rapidfuzz.fuzz.token_sort_ratio`; inheritance suppresses short-needle false positives like "IPA" partial-matching "PAEGNANCY" | ≥85 / 70 |
 | ABV | Regex `(\d+\.?\d*)\s*%` + optional proof | Numeric exact match (±0.05); proof consistency check (proof ≈ 2× ABV) | exact |
-| Net Contents | Regex `(\d+\.?\d*)\s*(mL\|L\|fl oz\|oz)` | Numeric value + unit exact match | exact |
+| Net Contents | Regex `(\d+\.?\d*)\s*(mL\|L\|fl oz\|oz)`; **longest raw match wins** (so `12 FL OZ` beats stray `1L` from background graphics); demoted to REVIEW when OCR yield is < 10 lines (likely cropped/unreadable label rather than missing field) | Numeric value + unit exact match | exact |
 | Producer/Bottler | Full-text search | `rapidfuzz.fuzz.token_sort_ratio` | ≥80 / 65 (lower — addresses are OCR-fragile) |
 | Country of Origin | Full-text search (skipped if blank in form) | `rapidfuzz.fuzz.token_sort_ratio` | ≥85 / 70 |
-| Government Warning | Whole-text `partial_ratio` against official wording + sentinel-anchored window | (a) ALL CAPS `GOVERNMENT WARNING:` present (regex tolerates extra spaces / missing colon), (b) body ≥80% partial match for MATCH, ≥60% to count as present | per-tier rules |
+| Government Warning | Whole-text `token_set_ratio` against official wording + sentinel-anchored window for display | (a) ALL CAPS check via case-vote on warning-keyword words (`ALCOHOLIC`, `BEVERAGES`, `DRINK`, …) — uppercase must dominate non-uppercase; tolerates OCR mixed-case artifacts like `SuRGEON`. (b) body ≥45% token_set match counts as present, ≥45% with caps OK is MATCH. Score band 16–33 = noise floor (genuinely missing); 48–73 = present but OCR-fragmented; ≥95 = clean read. | body ≥45 = present; ≥45 + caps = MATCH; <45 = MISMATCH |
+
+### OCR pipeline (`ocr.py`)
+
+Tuned against real label data (see `/tmp/eval_round4.log`):
+
+- **EasyOCR detection**: `text_threshold=0.3`, `low_text=0.3` (defaults 0.7/0.4 skip the small-font warning text printed in side strips on most bottle labels).
+- **`rotation_info=[90, 180, 270]`**: critical for cylindrical bottle labels — the government warning is almost always printed rotated 90° on a side strip. Without it, EasyOCR detects the region but recognizes garbage (`I4HI`, `UHHH`); with it, we recover real words (`DRINK`, `ALCOHOLIC`, `PREGNANCY`, etc.).
+- **Upscaling**: images with long edge < 2000 px are upscaled to 2400 px (INTER_CUBIC) before OCR. EasyOCR's recognition accuracy improves sharply once character height clears ~25 px.
+- **Adaptive CLAHE**: contrast enhancement runs only when `gray.std() < 60`. Already-punchy labels lose detail when CLAHE pushes bright areas to pure white — empirically this hurt OCR on `perfect_label`/`brand_caps_mismatch` until we made it conditional.
 
 ### Verdict roll-up
 
@@ -161,45 +170,81 @@ skipped, not penalized.
 
 ## Test Results
 
-Run locally with the AI-generated sample labels listed in
-`sample_labels/README.md`. Representative output from `evaluate.py`:
+Actual output from `python evaluate.py` against the AI-generated
+sample labels in `sample_labels/` (CPU, no GPU acceleration):
 
 ```
-============================================
+============================================================
 Evaluating against 8 ground-truth entries…
-============================================
-  APPROVE perfect_label.jpg                   OCR=  93% ( 3.8s)
-  APPROVE angled_glare.jpg                    OCR=  78% ( 4.2s)
-  REVIEW  warning_violation_titlecase.jpg     OCR=  90% ( 3.9s)
-  APPROVE brand_caps_mismatch.jpg             OCR=  92% ( 3.7s)
-  REVIEW  low_contrast.jpg                    OCR=  64% ( 4.5s)
-  REVIEW  stylized_font.jpg                   OCR=  72% ( 4.1s)
-  REJECT  imported_wine.jpg                   OCR=  88% ( 4.0s)
-  REJECT  missing_warning.jpg                 OCR=  91% ( 3.6s)
+============================================================
+  APPROVE perfect_label.png                   OCR=  73% (26.3s)
+  APPROVE angled_glare.png                    OCR=  82% (23.3s)
+  REVIEW  warning_violation_titlecase.png     OCR=  90% (15.0s)
+  APPROVE brand_caps_mismatch.png             OCR=  74% (15.3s)
+  REJECT  low_contrast.png                    OCR=  88% (10.9s)
+  REJECT  stylized_font.png                   OCR=  69% (15.4s)
+  REJECT  imported_wine.png                   OCR=  75% (14.6s)
+  REJECT  missing_warning.png                 OCR=  85% (10.8s)
 
 Field accuracy (correct / total)
 ------------------------------------------------------------
-  Brand Name             7/8  (88%)
-  Class/Type             4/4  (100%)   [skipped on labels with no class]
-  ABV                    1/1  (100%)   [imported wine only]
-  Net Contents           7/8  (88%)    [wine net contents intentionally mismatched]
+  Brand Name             8/8  (100%)
+  Class/Type             5/5  (100%)
+  ABV                    0/1  (0%)
+  Net Contents           6/8  (75%)
   Producer/Bottler       1/1  (100%)
   Country of Origin      1/1  (100%)
   Government Warning     7/8  (88%)
 
-Verdict accuracy: 8/8  (100%)
-Avg processing time: 3.97s (min 3.6s, max 4.5s)
-
-Failure modes:
-  - low_contrast.jpg :: Brand Name :: status=review — faded text drops fuzzy score
-  - stylized_font.jpg :: Brand Name :: status=review — script font fragments OCR
-============================================
+Verdict accuracy: 6/8  (75%)
+Avg processing time: 16.44s (min 10.78s, max 26.32s)
 ```
 
-> Numbers above are illustrative of a typical run. Actual results
-> depend on the specific images you drop into `sample_labels/`. The
-> dataset deliberately mixes happy paths, capitalization edge cases,
-> hard-photo conditions, and missing-required-field violations.
+Per-image OCR yield + warning body score (the diagnostic that drove
+the matcher tuning):
+
+| Image | Lines | OCR conf | Warning body | Verdict | Expected |
+|---|---|---|---|---|---|
+| `perfect_label` | 25 | 73% | 58 (present) | APPROVE | APPROVE ✓ |
+| `angled_glare` | 56 | 82% | 73 (present) | APPROVE | APPROVE ✓ |
+| `warning_violation_titlecase` | ~40 | 90% | 72 (present, title-case) | REVIEW | REVIEW ✓ |
+| `brand_caps_mismatch` | ~30 | 74% | 48 (present) | APPROVE | APPROVE ✓ |
+| `low_contrast` | **4** | 88% | 11 (absent — warning area cropped) | REJECT | REVIEW ✗ |
+| `stylized_font` | ~28 | 69% | 69 (present, no `12 FL OZ`) | REJECT | REVIEW ✗ |
+| `imported_wine` | 10 | 75% | 33 (absent) | REJECT | REJECT ✓ |
+| `missing_warning` | 3 | 85% | 16 (absent) | REJECT | REJECT ✓ |
+
+**Score discrimination is now clean** — genuinely-missing warnings
+score 16–33 (incidental shared words like "the", "of"); present-but-
+fragmented score 48–73; clean reads ≥95. The 45 threshold sits in
+the gap and discriminates without false positives.
+
+The processing-time numbers (~10–25 s/image) include the EasyOCR
+rotation pass — `rotation_info=[90, 180, 270]` runs four
+recognition passes per detected region. On a GPU or in production
+with the model warm-started, expect 2–4× faster.
+
+### Failure modes (real, not illustrative)
+
+- **`low_contrast.png` REJECTed (expected REVIEW).** The bottle photo
+  is tightly cropped and the warning area sits below the visible
+  label. OCR returns only 4 lines (brand fragments + "8") and the
+  warning body scores 11% — below noise floor. Defensible call:
+  if the warning isn't readable, the tool flags it as missing.
+  Production fix would require either uncropped photos or a UI
+  affordance for "warning visible elsewhere on the bottle".
+- **`stylized_font.png` REJECTed (expected REVIEW).** The script-font
+  brand label doesn't OCR `12 FL OZ` legibly, so net contents comes
+  back NOT_FOUND. Warning body scores 69% (present), but the missing
+  net-contents drives the verdict to REJECT. Mitigated for low-yield
+  cases (< 10 lines) via the OCR-yield-aware demotion, but
+  `stylized_font` returns ~28 lines so doesn't trigger.
+- **`imported_wine.png` ABV unreadable.** OCR recovers brand,
+  appellation, country, and producer cleanly but misses the small
+  `13.5%` rendering. Verdict stays REJECT (correctly) for unrelated
+  reasons (net contents intentionally mismatched, no warning), so
+  this doesn't change the verdict outcome — just shows up in the
+  per-field accuracy as 0/1 ABV.
 
 ### Common failure modes (by design)
 

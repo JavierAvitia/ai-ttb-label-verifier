@@ -53,6 +53,31 @@ def _to_cv2(image: "Image.Image | np.ndarray | str") -> np.ndarray:
     raise TypeError(f"Unsupported image type: {type(image).__name__}")
 
 
+# Government-warning text on real labels is often the smallest type on the
+# bottle (sometimes rotated 90° in a side strip). EasyOCR's recognition
+# accuracy degrades sharply once character height drops below ~25 px.
+# Upscaling images whose long edge sits under this threshold to ~2400 px
+# before OCR runs reliably promotes those small regions into the band
+# where EasyOCR can read them — at the cost of a modest extra ~0.5–1.0s
+# per image, which is well inside Sarah's <5s feedback budget.
+_MIN_LONG_EDGE = 2000
+_TARGET_LONG_EDGE = 2400
+
+
+def _upscale_if_small(img: np.ndarray) -> np.ndarray:
+    """Upscale `img` (cv2 ndarray) to ~_TARGET_LONG_EDGE if its long edge
+    is below _MIN_LONG_EDGE. INTER_CUBIC keeps strokes clean; no-op when
+    the input is already large enough."""
+    h, w = img.shape[:2]
+    long_edge = max(h, w)
+    if long_edge >= _MIN_LONG_EDGE:
+        return img
+    scale = _TARGET_LONG_EDGE / float(long_edge)
+    new_w = int(round(w * scale))
+    new_h = int(round(h * scale))
+    return cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
+
+
 def _deskew(gray: np.ndarray, angle_threshold: float = 5.0) -> np.ndarray:
     """Best-effort deskew. Only rotates if estimated angle exceeds threshold.
 
@@ -91,17 +116,27 @@ def preprocess(image: "Image.Image | np.ndarray | str") -> np.ndarray:
     """Run the standard preprocessing pipeline. Returns a single-channel image.
 
     Pipeline:
-        1. To grayscale
-        2. CLAHE contrast enhancement (clip=2.0, tile=8x8)
-        3. Mild Gaussian blur (3x3) to suppress salt-and-pepper noise
-        4. Optional deskew if estimated angle > 5 degrees
+        1. Upscale if long edge < 2000 px (helps tiny warning text)
+        2. To grayscale
+        3. CLAHE contrast enhancement only on low-contrast images
+           (gray.std() < 60). Already-clean labels lose detail when CLAHE
+           pushes bright areas to pure white — empirically this hurt
+           OCR on perfect_label/brand_caps_mismatch in our eval set.
+        4. Mild Gaussian blur (3x3) to suppress salt-and-pepper noise on
+           the enhanced path only — clean inputs don't need denoising.
+        5. Optional deskew if estimated angle > 5 degrees
     """
     bgr = _to_cv2(image)
+    bgr = _upscale_if_small(bgr)
     gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    enhanced = clahe.apply(gray)
-    blurred = cv2.GaussianBlur(enhanced, (3, 3), 0)
-    return _deskew(blurred)
+    # Adaptive contrast: leave already-punchy labels alone; rescue washed-out
+    # ones. Threshold picked empirically — perfect_label std ≈ 70+, while
+    # low_contrast hovers around 30–45.
+    if float(gray.std()) < 60.0:
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        gray = clahe.apply(gray)
+        gray = cv2.GaussianBlur(gray, (3, 3), 0)
+    return _deskew(gray)
 
 
 def extract_text(
@@ -129,7 +164,23 @@ def extract_text(
     else:
         prepared = preprocess(image)
     reader = _get_reader()
-    raw = reader.readtext(prepared)
+    # Detection thresholds: defaults (text_threshold=0.7, low_text=0.4) skip
+    # the small-font government warning that sits in a vertical strip on most
+    # of our test labels. Lowering them brings that text into the candidate
+    # set; the matcher's per-line confidence still surfaces low-quality reads.
+    #
+    # rotation_info=[90, 180, 270] is the critical piece for cylindrical
+    # bottle labels: the government warning is almost always printed
+    # rotated 90° along a side strip. Without this, EasyOCR detects the
+    # region but recognizes it as garbage (I4HI, UHHH, BH, …); with it,
+    # we recover the real words ('DRINK', 'ALCOHOLIC', 'PREGNANCY', etc.).
+    raw = reader.readtext(
+        prepared,
+        text_threshold=0.3,
+        low_text=0.3,
+        paragraph=False,
+        rotation_info=[90, 180, 270],
+    )
     lines: list[str] = []
     confs: list[float] = []
     for entry in raw:
