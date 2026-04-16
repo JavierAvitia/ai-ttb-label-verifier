@@ -108,9 +108,11 @@ def process_batch(uploaded_files, expected: dict) -> list[VerificationResult]:
         return []
     progress = st.progress(0.0, text=f"Processing 0 / {total}…")
     results: list[VerificationResult] = []
-    # max_workers=4: a sensible default. EasyOCR releases the GIL during
-    # inference so we get real parallelism even on a single CPU.
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    # max_workers=2: kept low to fit within Streamlit Cloud's 1 GB RAM.
+    # EasyOCR releases the GIL during inference so we still get real
+    # parallelism; 2 workers avoids the ~200-400 MB extra RSS that 4
+    # concurrent image buffers would add.
+    with ThreadPoolExecutor(max_workers=2) as executor:
         futures = {
             executor.submit(process_single_label, b, n, expected): n
             for b, n in payloads

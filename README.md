@@ -85,24 +85,37 @@ The first launch downloads the EasyOCR detection + recognition models
 (~100 MB) and caches them under `~/.EasyOCR/`. Subsequent launches load
 the model in seconds.
 
-### Deployed
-
-The app deploys cleanly to **Streamlit Community Cloud**:
+### Deployed — Streamlit Community Cloud
 
 1. Push this repo to GitHub.
 2. At [share.streamlit.io](https://share.streamlit.io) → New app → point
    it at the repo, branch, and `app.py`.
-3. The first cold-start downloads the OCR models (~30s) — subsequent
+3. Under **Advanced settings**, set Python version to **3.11**.
+4. The first cold-start downloads the OCR models (~30s) — subsequent
    sessions are fast.
+
+> **Memory note:** Streamlit Cloud's free tier provides 1 GB RAM.
+> EasyOCR + PyTorch CPU consume ~600–800 MB resident. The app limits
+> `torch` threads to 2 and batch concurrency to 2 workers to stay
+> within budget. If the free tier OOMs on very large images, use the
+> Docker deployment below instead.
 
 > Live URL: _add the deployed URL here once published._
 
-### Docker (optional)
+### Docker (recommended for reliability)
+
+The included `Dockerfile` uses `python:3.11-slim` and installs all
+system dependencies. This is the most reliable deployment path and
+works on any container host (Render, Railway, Fly.io, etc.):
 
 ```bash
 docker build -t ttb-label-verifier .
 docker run -p 8501:8501 ttb-label-verifier
 ```
+
+On **Render.com** (free tier): create a new Web Service, point it at
+the repo, select "Docker" as the environment, and it will build and
+deploy automatically.
 
 ### Evaluation harness
 
