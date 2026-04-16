@@ -127,17 +127,6 @@ st.markdown(
         overflow: hidden;
     }
 
-    /* --- Light mode overrides --- */
-    @media (prefers-color-scheme: light) {
-        [data-testid="stExpander"] {
-            background: #FFFFFF;
-            border-color: rgba(212, 160, 23, 0.2);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-        }
-        [data-testid="stCheckbox"] label span {
-            color: #2C2C2C !important;
-        }
-    }
     </style>
     """,
     unsafe_allow_html=True,
