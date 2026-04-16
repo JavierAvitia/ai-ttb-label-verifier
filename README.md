@@ -146,7 +146,7 @@ sub-package, no model-switching abstractions, no premature engineering.
 | Net Contents | Regex `(\d+\.?\d*)\s*(mL\|L\|fl oz\|oz)` | Numeric value + unit exact match | exact |
 | Producer/Bottler | Full-text search | `rapidfuzz.fuzz.token_sort_ratio` | ≥80 / 65 (lower — addresses are OCR-fragile) |
 | Country of Origin | Full-text search (skipped if blank in form) | `rapidfuzz.fuzz.token_sort_ratio` | ≥85 / 70 |
-| Government Warning | Locate header + window around it | (a) ALL CAPS `GOVERNMENT WARNING:` present, (b) body ≥90% fuzzy match | per-tier rules |
+| Government Warning | Whole-text `partial_ratio` against official wording + sentinel-anchored window | (a) ALL CAPS `GOVERNMENT WARNING:` present (regex tolerates extra spaces / missing colon), (b) body ≥80% partial match for MATCH, ≥60% to count as present | per-tier rules |
 
 ### Verdict roll-up
 

@@ -83,9 +83,12 @@ _FUZZY_THRESHOLDS = {
 _ABV_PERCENT_RE = re.compile(r"(\d{1,3}(?:\.\d+)?)\s*%")
 # Match "(90 proof)" / "90 Proof"
 _PROOF_RE = re.compile(r"(\d{1,3}(?:\.\d+)?)\s*[Pp]roof")
-# Match "750 mL", "1.75 L", "12 fl oz", "12 fl. oz", "355 ml"
+# Match "750 mL", "1.75 L", "12 fl oz", "12 fl. oz", "355 ml".
+# Negative lookbehind on `(` and digits guards against matching the "(1)"
+# numbering inside the government warning ("(1) According to…") combined
+# with a stray L/oz fragment elsewhere in the OCR text.
 _NET_CONTENTS_RE = re.compile(
-    r"(\d+(?:\.\d+)?)\s*(ml|l|fl\.?\s*oz|oz)\b",
+    r"(?<![\(\d.])(\d+(?:\.\d+)?)\s*(ml|l|fl\.?\s*oz|oz)\b",
     re.IGNORECASE,
 )
 
@@ -139,45 +142,74 @@ def extract_net_contents(text: str) -> Optional[dict]:
     return {"value": value, "unit": unit, "raw": m.group(0)}
 
 
+_WARNING_SENTINELS = (
+    "government warning",
+    "surgeon general",
+    "birth defects",
+    "during pregnancy",
+    "operate machinery",
+    "health problems",
+    "alcoholic beverages",
+)
+
+# Allow common OCR artifacts in the all-caps header check: extra spaces
+# anywhere, missing colon, "WARN ING" with a space.
+_HEADER_CAPS_RE = re.compile(r"GOVERNMENT\s+WARN\s*ING\s*:?")
+
+
 def extract_warning(text: str) -> dict:
     """Detect the presence and capitalization of the government warning.
 
     Returns: {
-        'present': bool,            # any reasonable match for the warning body
+        'present': bool,            # warning text is recognizable in the OCR output
         'header_caps_ok': bool,     # 'GOVERNMENT WARNING:' appears in ALL CAPS
         'body_score': float,        # 0–100 fuzzy match of the body text
         'extracted': str,           # the text window we considered
     }
+
+    Detection strategy: fuzzy partial-ratio match against the entire
+    normalized OCR text. This is robust to the heavy fragmentation that
+    OCR introduces on small-font multi-line warnings — substrings can
+    span line breaks and still score above threshold.
+
+    The header caps check is independent and uses the *raw* (un-lowercased)
+    text — that's how Jenny's "Government Warning" title-case violation
+    is detected.
     """
     if not text:
         return {"present": False, "header_caps_ok": False, "body_score": 0.0, "extracted": ""}
-    # Header is required to be all caps. Check the unmodified text.
-    header_caps_ok = GOVERNMENT_WARNING_HEADER in text
-    # Find the warning area regardless of caps for body comparison.
+
+    # Header caps check on raw text — tolerates "WARN ING" / extra spaces /
+    # missing colon, but the letters themselves must be uppercase.
+    header_caps_ok = bool(_HEADER_CAPS_RE.search(text))
+
+    # Whole-text fuzzy detection. partial_ratio finds the best matching
+    # substring of the warning's length within the (much larger) OCR text.
     norm_text = _norm(text)
-    norm_header = _norm(GOVERNMENT_WARNING_HEADER)
+    norm_warning = _norm(GOVERNMENT_WARNING_TEXT)
+    body_score = float(fuzz.partial_ratio(norm_warning, norm_text))
+
+    # Locate a window for human display. Try to anchor on a sentinel, fall
+    # back to the start of the warning's best-matching region.
     extracted_window = ""
-    if norm_header in norm_text:
-        idx = norm_text.index(norm_header)
-        extracted_window = text[idx: idx + len(GOVERNMENT_WARNING_TEXT) + 100]
-    else:
-        # Try a looser fallback: look for "surgeon general" or similar phrases.
-        for sentinel in ("surgeon general", "during pregnancy", "operate machinery"):
-            if sentinel in norm_text:
-                # Approximate window around the sentinel.
-                idx = norm_text.index(sentinel)
-                extracted_window = text[max(0, idx - 50): idx + len(GOVERNMENT_WARNING_TEXT)]
-                break
-    body_score = (
-        fuzz.token_set_ratio(extracted_window, GOVERNMENT_WARNING_TEXT)
-        if extracted_window
-        else 0.0
-    )
-    present = body_score >= 75 or (header_caps_ok and body_score >= 60)
+    for sentinel in _WARNING_SENTINELS:
+        if sentinel in norm_text:
+            idx = norm_text.index(sentinel)
+            start = max(0, idx - 30)
+            end = min(len(norm_text), idx + len(norm_warning) + 60)
+            extracted_window = norm_text[start:end]
+            break
+    if not extracted_window and body_score >= 50:
+        extracted_window = norm_text[: len(norm_warning) + 80]
+
+    # Threshold tuned for OCR realities: well below 90 because perfect
+    # OCR is rare on small-font warnings; well above noise-floor matches.
+    present = body_score >= 60
+
     return {
         "present": bool(present),
         "header_caps_ok": header_caps_ok,
-        "body_score": float(body_score),
+        "body_score": body_score,
         "extracted": extracted_window.strip(),
     }
 
@@ -355,7 +387,7 @@ def _check_warning(extracted: dict) -> FieldResult:
     body_score = extracted.get("body_score", 0.0)
     caps_ok = extracted.get("header_caps_ok", False)
     snippet = extracted.get("extracted", "")
-    if caps_ok and body_score >= 90:
+    if caps_ok and body_score >= 80:
         return FieldResult(
             "Government Warning", "Required statement present",
             snippet, body_score, STATUS_MATCH,
