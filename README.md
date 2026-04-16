@@ -1,3 +1,14 @@
+---
+title: TTB Label Verifier
+emoji: 🍷
+colorFrom: purple
+colorTo: blue
+sdk: streamlit
+sdk_version: 1.42.0
+app_file: app.py
+pinned: false
+---
+
 # TTB Alcohol Label Verification Tool
 
 A browser-based prototype that lets TTB compliance agents verify alcohol-label
@@ -31,7 +42,7 @@ It directly addresses the stakeholder concerns from the project brief:
 | **Preprocessing** | OpenCV (headless) | CLAHE + Gaussian blur + optional deskew handles glare, angles, low contrast |
 | **Matching** | RapidFuzz + regex | Fuzzy for brand/class/producer; numeric comparison for ABV / net contents; presence + caps check for warning |
 | **Tabular display & export** | Pandas | Results tables and one-click CSV download |
-| **Deployment** | Docker on Render.com | Full control over system deps and memory; Streamlit Cloud's 1 GB free tier OOMs during EasyOCR + PyTorch model loading |
+| **Deployment** | HuggingFace Spaces | 16 GB free RAM handles EasyOCR + PyTorch easily; native Streamlit SDK — just push and it runs |
 
 ### Why *not* the alternatives
 
@@ -42,10 +53,10 @@ It directly addresses the stakeholder concerns from the project brief:
   vendor pilot died on this exact issue.
 - **No database** — Marcus confirmed no PII concerns for the prototype;
   everything is in-memory per session.
-- **No Streamlit Community Cloud** — the free tier's 1 GB RAM
-  limit consistently OOMs during EasyOCR + PyTorch model loading.
-  Docker on Render.com gives reliable CPU resources and full
-  control over system dependencies.
+- **No Streamlit Community Cloud / Render.com free tier** — Streamlit
+  Cloud's 1 GB RAM limit OOMs during model loading; Render's free
+  tier (512 MB) is even tighter. HuggingFace Spaces provides 16 GB
+  free with native Streamlit support.
 
 ---
 
@@ -86,44 +97,49 @@ The first launch downloads the EasyOCR detection + recognition models
 (~100 MB) and caches them under `~/.EasyOCR/`. Subsequent launches load
 the model in seconds.
 
-### Deployed — Render.com (recommended)
+### Deployed — HuggingFace Spaces (recommended)
 
-Docker on Render.com is the recommended deployment path. Streamlit
-Community Cloud's 1 GB free tier consistently OOMs during EasyOCR +
-PyTorch model loading — the build succeeds but the app hangs at
-startup. Render gives full Docker control over system dependencies
-and reliable CPU resources for local OCR inference.
+HuggingFace Spaces is the recommended deployment path. EasyOCR +
+PyTorch CPU requires ~2 GB peak RAM during model loading — this
+exceeds the free tiers of Streamlit Cloud (1 GB) and Render (512 MB).
+HuggingFace Spaces provides 16 GB free RAM with native Streamlit
+SDK support, so the app runs without any code changes.
 
 1. Push this repo to GitHub.
-2. On [render.com](https://render.com) → **New +** → **Web Service**.
-3. Connect the GitHub repo, select **Docker** as the runtime.
-4. Leave build/start commands blank (the `Dockerfile` handles both).
-5. Select the **Free** plan (750 CPU-hours/month — sufficient for a POC).
-6. Click **Create Web Service**.
+2. On [huggingface.co/spaces](https://huggingface.co/new-space) →
+   **Create new Space**.
+3. Select **Streamlit** as the SDK, link the GitHub repo.
+4. HF Spaces auto-installs from `requirements.txt` and runs `app.py`.
 
-The first build takes ~10–15 minutes (downloads PyTorch + EasyOCR
-models). Subsequent deploys are faster via Docker layer caching.
+The first build takes ~5–10 minutes (installs PyTorch CPU + EasyOCR,
+downloads detection + recognition models). Subsequent deploys reuse
+cached layers.
 
-> **Cold-start note:** the free tier sleeps after ~15 min of inactivity.
-> First visit after sleep takes 30–90 seconds while OCR models reload.
+> **Cold-start note:** the free tier sleeps after ~48 hours of
+> inactivity. First visit after sleep takes 30–90 seconds while the
+> container restarts and OCR models reload.
 
 > Live URL: _add the deployed URL here once published._
 
-### Docker (local)
+### Docker (local / self-hosted)
 
 ```bash
 docker build -t ttb-label-verifier .
 docker run -p 8501:8501 ttb-label-verifier
 ```
 
-### Why Render over Streamlit Cloud
+A `Dockerfile` is included for environments where you need full
+control over system dependencies (on-prem, VPS, etc.).
 
-| Concern | Streamlit Cloud | Render + Docker |
-|---|---|---|
-| EasyOCR + PyTorch memory | 1 GB shared; OOMs during model load | Full container resources; reliable startup |
-| System dependencies | Mixed Debian base; apt conflicts | `python:3.11-slim`; pinned everything |
-| Reproducibility | Platform-managed Python + deps | Dockerfile locks the entire stack |
-| Senior-engineer signal | "It deploys" | Thoughtful infra decision documented |
+### Why HuggingFace Spaces
+
+| Concern | Streamlit Cloud | Render.com free | HuggingFace Spaces |
+|---|---|---|---|
+| Free RAM | 1 GB — OOMs during model load | 512 MB — OOMs immediately | **16 GB** — plenty of headroom |
+| Streamlit support | Native | Docker only | **Native SDK** — zero config |
+| System dependencies | Mixed Debian base; apt conflicts | Dockerfile required | Pre-installed (libGL, etc.) |
+| Cold start | N/A (OOMs) | N/A (OOMs) | ~30–90s after sleep |
+| Senior-engineer signal | "It deploys" | Thoughtful Dockerfile | ML-aware platform choice |
 
 ### Evaluation harness
 
