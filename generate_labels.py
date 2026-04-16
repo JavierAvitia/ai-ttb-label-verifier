@@ -1,17 +1,19 @@
 """
-Generate test label images with programmatically rendered text.
+Supplementary: generate simple test labels with programmatic text.
 
-AI image generators (Midjourney, Flux, Grok) produce beautiful labels
-but render text as decorative texture — EasyOCR can't read it. This
-script creates labels with real, OCR-readable text using Pillow.
+The primary test set is the AI-generated images in sample_labels/ —
+those are realistic bottle-label photos that exercise the full OCR +
+preprocessing pipeline (rotation, CLAHE, deskew, noise filtering).
 
-The labels aren't pretty, but they contain actual text that EasyOCR can
-parse. For a take-home, this is the right trade-off: the evaluator
-cares that your OCR + matcher pipeline works, not that your test images
-look like marketing shots.
+This script produces plain Pillow-rendered labels useful for fast
+iteration when tuning the matcher (no OCR ambiguity, instant
+regeneration, deterministic output). Run it to populate a separate
+directory for quick smoke tests:
 
-Usage:
-    python generate_labels.py [--output-dir sample_labels]
+    python generate_labels.py --output-dir sample_labels_programmatic
+
+Do NOT overwrite sample_labels/ — those contain the AI-generated images
+used by the evaluation harness and ground_truth.json.
 """
 
 from __future__ import annotations
