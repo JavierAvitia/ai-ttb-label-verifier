@@ -14,7 +14,7 @@ It directly addresses the stakeholder concerns from the project brief:
 | Stakeholder concern | How this tool addresses it |
 |---|---|
 | Janet — needs to process 5–20+ labels at a time | Batch upload with parallel OCR; results sorted by severity |
-| Sarah — sub-5s feedback, "my mother could use it" | Streamlit drag-and-drop UI; ~16–28s per image on CPU after model warmup (dual-pass OCR), 2–4× faster on GPU |
+| Sarah — sub-5s feedback, "my mother could use it" | Streamlit drag-and-drop UI; ~10–18s per image on CPU after model warmup (dual-pass OCR with rotation), 2–4× faster on GPU |
 | Dave — capitalization/punctuation nuance ("STONE'S THROW" vs "Stone's Throw") | Fuzzy matching with calibrated thresholds; explanatory notes per field |
 | Jenny — bad photos (angles, glare, low contrast) | OpenCV preprocessing pipeline (CLAHE, deskew, blur); low-confidence warning per image |
 | Marcus — no firewall-blocked vendor APIs, no PII | Fully self-contained: EasyOCR runs locally, no network calls, no persistence |
@@ -107,10 +107,11 @@ docker run -p 8501:8501 ttb-label-verifier
 ### Evaluation harness
 
 ```bash
-# Generate the programmatic test labels (OCR-readable Pillow-rendered text)
-python generate_labels.py --output-dir sample_labels
-# Run the evaluation harness
+# Run the evaluation harness against the AI-generated sample labels
 python evaluate.py
+
+# Optional: generate programmatic labels for fast matcher iteration
+python generate_labels.py --output-dir sample_labels_programmatic
 ```
 
 ---
@@ -124,9 +125,9 @@ ai-ttb-label-verifier/
 ├── matcher.py          # Field extraction + per-field comparison
 ├── utils.py            # Constants, helpers, CSV export
 ├── evaluate.py         # Offline accuracy / latency harness
-├── generate_labels.py  # Programmatic test-label generator (Pillow-rendered, OCR-readable)
+├── generate_labels.py  # Supplementary: programmatic labels for fast matcher iteration
 ├── ground_truth.json   # Per-image expected values for evaluation
-├── sample_labels/      # Generated test images (run generate_labels.py)
+├── sample_labels/      # AI-generated test label images (realistic bottle photos)
 ├── requirements.txt
 ├── Dockerfile          # Optional containerized deploy
 └── .streamlit/config.toml
@@ -151,9 +152,9 @@ sub-package, no model-switching abstractions, no premature engineering.
 
 ### OCR pipeline (`ocr.py`)
 
-Tuned against the programmatic test labels:
+Tuned against the AI-generated test labels:
 
-- **Dual-pass OCR**: Pass 1 runs on the preprocessed image (upscale + adaptive CLAHE + deskew); Pass 2 runs on the raw BGR image. Results are merged via containment-based dedup, keeping the higher-confidence version. Small-font text (government warning) often survives better on the unprocessed image.
+- **Dual-pass OCR**: Pass 1 runs on the preprocessed image with `rotation_info=[90,180,270]` (catches vertical warning text on bottle side strips); Pass 2 runs on the raw BGR image without rotation (recovers horizontal small text without fragmentation). Results are merged via containment-based dedup, keeping the higher-confidence version.
 - **Noise filtering**: drops single-character fragments (OCR artifacts from borders/decorations), lines below 25% confidence, and short pure-digit/symbol garbage. Applied after merging both passes.
 - **EasyOCR detection**: `text_threshold=0.3`, `low_text=0.3` (defaults 0.7/0.4 skip the small-font warning text).
 - **Upscaling**: images with long edge < 2000 px are upscaled to 2400 px (INTER_CUBIC) before OCR. EasyOCR's recognition accuracy improves sharply once character height clears ~25 px.
@@ -173,62 +174,63 @@ skipped, not penalized.
 
 ## Test Results
 
-Actual output from `python evaluate.py` against the programmatic
-test labels in `sample_labels/` (CPU, no GPU acceleration):
+Actual output from `python evaluate.py` against the AI-generated
+sample labels in `sample_labels/` (CPU, no GPU acceleration):
 
 ```
 ============================================================
 Evaluating against 8 ground-truth entries…
 ============================================================
-  APPROVE perfect_label.png                   OCR=  81% (28.4s)
-  REJECT  angled_glare.png                    OCR=  64% (19.9s)
-  REVIEW  warning_violation_titlecase.png     OCR=  79% (17.3s)
-  APPROVE brand_caps_mismatch.png             OCR=  83% (17.2s)
-  APPROVE low_contrast.png                    OCR=  76% (16.9s)
-  APPROVE stylized_font.png                   OCR=  73% (17.5s)
-  REJECT  imported_wine.png                   OCR=  89% (16.5s)
-  REJECT  missing_warning.png                 OCR=  93% (16.2s)
+  APPROVE perfect_label.png                   OCR=  87% (68.2s)
+  APPROVE angled_glare.png                    OCR=  80% (18.4s)
+  REVIEW  warning_violation_titlecase.png     OCR=  95% (13.3s)
+  APPROVE brand_caps_mismatch.png             OCR=  82% (12.5s)
+  REJECT  low_contrast.png                    OCR=  80% (10.2s)
+  REVIEW  stylized_font.png                   OCR=  91% (13.0s)
+  REJECT  imported_wine.png                   OCR=  75% (12.2s)
+  REJECT  missing_warning.png                 OCR=  91% (10.0s)
 
 Field accuracy (correct / total)
 ------------------------------------------------------------
-  ABV                    8/8  (100%)
+  ABV                    1/1  (100%)
   Brand Name             8/8  (100%)
-  Class/Type             8/8  (100%)
+  Class/Type             5/5  (100%)
   Country of Origin      1/1  (100%)
   Government Warning     7/8  (88%)
-  Net Contents           6/8  (75%)
-  Producer/Bottler       6/6  (100%)
+  Net Contents           7/8  (88%)
+  Producer/Bottler       1/1  (100%)
 
 Verdict accuracy: 7/8  (88%)
-Avg processing time: 18.74s (min 16.19s, max 28.41s)
+Avg processing time: 19.72s (min 10.01s, max 68.24s)
 ```
 
 | Image | OCR conf | Verdict | Expected | Notes |
 |---|---|---|---|---|
-| `perfect_label` | 81% | APPROVE | APPROVE ✓ | All fields match cleanly |
-| `angled_glare` | 64% | REJECT | APPROVE ✗ | 12° rotation fragments text into 43 lines; net contents and warning caps unrecoverable |
-| `warning_violation_titlecase` | 79% | REVIEW | REVIEW ✓ | Title-case "Government Warning:" correctly detected via keyword case-vote |
-| `brand_caps_mismatch` | 83% | APPROVE | APPROVE ✓ | "Stone's Throw" fuzzy-matches "STONE'S THROW" |
-| `low_contrast` | 76% | APPROVE | APPROVE ✓ | Adaptive CLAHE + OCR error correction (`0Z`→`OZ`) recovers all fields |
-| `stylized_font` | 73% | APPROVE | APPROVE ✓ | Dark bg + gold text + small font; dual-pass OCR recovers warning |
-| `imported_wine` | 89% | REJECT | REJECT ✓ | Net contents mismatch (label 90 mL ≠ expected 750 mL) + no warning |
-| `missing_warning` | 93% | REJECT | REJECT ✓ | No government warning detected (body score 16%) |
+| `perfect_label` | 87% | APPROVE | APPROVE ✓ | Brand + class + net contents all matched; warning caps confirmed via keyword vote |
+| `angled_glare` | 80% | APPROVE | APPROVE ✓ | 20° tilt + glare; rotation pass recovers warning keywords in ALL CAPS |
+| `warning_violation_titlecase` | 95% | REVIEW | REVIEW ✓ | Title-case "Warning:" detected via keyword case-vote (0 uppercase, many titlecase hits) |
+| `brand_caps_mismatch` | 82% | APPROVE | APPROVE ✓ | "Stone's Throw" fuzzy-matches "STONE'S THROW" at ≥85 |
+| `low_contrast` | 80% | REJECT | REVIEW ✗ | Only 5 OCR lines; warning text invisible in low-contrast region |
+| `stylized_font` | 91% | REVIEW | REVIEW ✓ | Script font; brand fuzzy-matches in REVIEW band; warning keywords recovered |
+| `imported_wine` | 75% | REJECT | REJECT ✓ | Net contents mismatch (label ~50 mL ≠ expected 750 mL) + no warning |
+| `missing_warning` | 91% | REJECT | REJECT ✓ | No government warning detected (body score 16%) |
 
-Processing times (~16–28 s/image) include dual-pass OCR. On a GPU
-or in production with the model warm-started, expect 2–4× faster.
+Processing times (~10–68 s/image) include the rotation pass on pass 1
+(EasyOCR tests 4 orientations per region). The 68s outlier is
+`perfect_label` which has many detected regions; typical images run
+10–18s. On a GPU or in production with warm model, expect 2–4× faster.
 
 ### Failure mode
 
-- **`angled_glare.png` REJECTed (expected APPROVE).** The 12° rotation
-  causes EasyOCR to fragment the label into 43 tiny text regions
-  instead of ~11 clean lines. "12 FL OZ" splits across non-adjacent
-  detections, so net contents is not recoverable. Warning keywords are
-  OCR'd in mixed/lowercase, so the caps vote can't confirm ALL CAPS
-  formatting. This is a fundamental OCR limitation on significantly
-  rotated images — the deskew pipeline corrects angles > 5° on the
-  grayscale image, but EasyOCR's text detection still struggles with
-  the rotated input. Production mitigation: guide users to photograph
-  labels as straight as possible, or add a manual rotation control.
+- **`low_contrast.png` REJECTed (expected REVIEW).** The bottle photo
+  has extremely faint text — OCR recovers only 5 lines (brand
+  fragments + "12 FL OZ"). The government warning is completely
+  invisible at this contrast level, so the warning body scores 18%
+  (below noise floor). The tool correctly reports "warning not
+  detected" — if the warning isn't readable, that's an honest
+  finding. Production mitigation: prompt agents to re-photograph
+  under better lighting, or accept REJECT as a conservative default
+  when critical text is unreadable.
 
 ### Common failure modes (by design)
 

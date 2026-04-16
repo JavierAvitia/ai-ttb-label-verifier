@@ -273,10 +273,11 @@ def extract_text(
         processing_time: float        — seconds elapsed including preprocessing
         raw_results:     list         — filtered (text, conf) tuples for debugging
 
-    Multi-pass mode (default) runs OCR twice — once on the preprocessed
-    image and once on the raw BGR image — then merges the results. This
-    recovers small-font text (like the government warning) that CLAHE
-    or grayscale conversion can wash out.
+    Multi-pass mode (default) runs OCR twice then merges:
+      - Pass 1: preprocessed + rotation_info (catches vertical warning text)
+      - Pass 2: raw BGR, no rotation (recovers horizontal small text)
+    This recovers both vertical side-strip warnings on bottle labels
+    AND small-font text that CLAHE or grayscale conversion can wash out.
     """
     t0 = time.perf_counter()
     bgr = _to_cv2(image)
@@ -285,17 +286,19 @@ def extract_text(
         all_lines = _run_ocr_pass(bgr)
     else:
         # Pass 1: preprocessed (upscale + adaptive CLAHE + deskew).
-        # No rotation_info — rotation is only useful for vertical text
-        # on real cylindrical bottle labels and actively hurts on clean
-        # horizontal labels (fragments "12 FL OZ" into single chars).
+        # rotation_info=[90,180,270] recovers vertical warning text on
+        # real cylindrical bottle labels (side-strip printing). Adds
+        # ~3× processing time but is critical for AI-generated test
+        # images that simulate real bottle photography.
         preprocessed = preprocess(image)
-        pass1 = _run_ocr_pass(preprocessed)
+        pass1 = _run_ocr_pass(preprocessed, use_rotation=True)
 
         if multi_pass:
-            # Pass 2: raw BGR image. Small text and fine print often
-            # survive better without grayscale + CLAHE. No paragraph
-            # mode — it aggressively merges all text into mega-lines
-            # which breaks the containment-based merge dedup.
+            # Pass 2: raw BGR image, NO rotation. Small text and fine
+            # print often survive better without grayscale + CLAHE.
+            # Skipping rotation here avoids fragmenting horizontal text
+            # (e.g. "12 FL OZ" → "1" + "8") that the rotation pass
+            # can break up. The merge dedup keeps the best of both.
             pass2 = _run_ocr_pass(bgr)
             all_lines = _merge_passes(pass1, pass2)
         else:
