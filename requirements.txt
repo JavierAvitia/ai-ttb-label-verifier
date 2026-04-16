@@ -2,8 +2,8 @@
 
 streamlit==1.42.0
 easyocr==1.7.2
-torch==2.5.1+cpu
-torchvision==0.20.1+cpu
+torch==2.6.0+cpu
+torchvision==0.21.0+cpu
 numpy<2.0
 pillow==10.4.0
 opencv-python-headless==4.10.0.84
