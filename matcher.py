@@ -114,14 +114,16 @@ def extract_abv(text: str) -> Optional[dict]:
             window = text[max(0, m.start() - 25): m.end() + 25].lower()
             score = 0
             for kw in ("alc", "abv", "vol", "alcohol"):
-                if kw in window:
+                # Word boundary avoids false hits like "NVol" matching "vol"
+                if re.search(rf"\b{kw}\b", window):
                     score += 1
-            candidates.append((score, m.start(), pct, m.group(0)))
+            has_decimal = 1 if "." in m.group(1) else 0
+            candidates.append((score, has_decimal, m.start(), pct, m.group(0)))
     if not candidates:
         return None
-    # Highest context score, then earliest in text.
-    candidates.sort(key=lambda t: (-t[0], t[1]))
-    _, _, pct, raw = candidates[0]
+    # Highest context score, prefer decimal ABV (6.5% over 5%), then earliest.
+    candidates.sort(key=lambda t: (-t[0], -t[1], t[2]))
+    _, _, _, pct, raw = candidates[0]
     proof_m = _PROOF_RE.search(text)
     proof = float(proof_m.group(1)) if proof_m else None
     return {"percent": pct, "proof": proof, "raw": raw}
@@ -138,7 +140,10 @@ def extract_net_contents(text: str) -> Optional[dict]:
     """
     if not text:
         return None
-    matches = list(_NET_CONTENTS_RE.finditer(text))
+    # Common OCR error: zero for capital-O in unit strings (e.g. "12 FL 0Z").
+    corrected = re.sub(r"(?<=\d\s)FL\s*0Z", "FL OZ", text, flags=re.IGNORECASE)
+    corrected = re.sub(r"\b0Z\b", "OZ", corrected)
+    matches = list(_NET_CONTENTS_RE.finditer(corrected))
     if not matches:
         return None
     # Longest raw span wins; ties broken by earliest occurrence.
