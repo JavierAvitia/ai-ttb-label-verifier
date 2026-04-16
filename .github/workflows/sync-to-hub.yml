@@ -14,7 +14,7 @@ jobs:
           fetch-depth: 0
           lfs: true
       - name: Sync to Hugging Face
-        uses: huggingface/hub-sync@v1
+        uses: huggingface/hub-sync@main
         with:
           github_repo_id: javieravitia/ai-ttb-label-verifier
           huggingface_repo_id: javieravitia/ai-ttb-label-verifier
