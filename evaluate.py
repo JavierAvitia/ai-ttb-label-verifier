@@ -10,7 +10,12 @@ overall verdict accuracy. Lets us:
   * measure end-to-end per-image latency
 
 Usage:
-    python evaluate.py [--sample-dir sample_labels] [--ground-truth ground_truth.json]
+    python evaluate.py [--sample-dir sample_labels] [--ground-truth ground_truth.json] [-v]
+
+Pass -v / --verbose to dump per-image raw OCR lines + confidences. That's
+the right tool when verdict accuracy looks suspicious — it shows whether
+a failure is OCR (text not recognized) vs matcher (text recognized but
+not extracted correctly).
 """
 
 from __future__ import annotations
@@ -28,7 +33,7 @@ from matcher import (
     overall_verdict,
     validate_fields,
 )
-from utils import STATUS_MATCH, STATUS_REVIEW
+from utils import STATUS_MATCH, STATUS_NOT_FOUND, STATUS_REVIEW
 
 
 # Image extensions we'll auto-discover. Lets ground_truth.json reference
@@ -83,7 +88,18 @@ def _field_matched(field_name: str, status: str, ground_truth: dict) -> bool:
     return status in (STATUS_MATCH, STATUS_REVIEW)
 
 
-def evaluate(sample_dir: Path, ground_truth_path: Path) -> int:
+def _is_benign_skip(f) -> bool:
+    """Was this field 'not provided' in the application data?
+
+    Such fields are correctly skipped by the matcher and shouldn't count
+    against the per-field accuracy denominator — including them produces
+    misleading totals like "ABV 0/8" when ABV was only expected on one
+    of the eight labels.
+    """
+    return f.status == STATUS_NOT_FOUND and "Not provided" in (f.notes or "")
+
+
+def evaluate(sample_dir: Path, ground_truth_path: Path, verbose: bool = False) -> int:
     if not ground_truth_path.exists():
         print(f"ERROR: ground truth file not found at {ground_truth_path}")
         return 2
@@ -133,8 +149,11 @@ def evaluate(sample_dir: Path, ground_truth_path: Path) -> int:
         durations.append(elapsed)
         images_processed += 1
 
-        # Per-field tally.
+        # Per-field tally. Skip fields the user didn't fill in — those
+        # are benign matcher skips, not accuracy misses.
         for f in fields:
+            if _is_benign_skip(f):
+                continue
             field_total[f.field_name] += 1
             if _field_matched(f.field_name, f.status, gt):
                 field_correct[f.field_name] += 1
@@ -154,6 +173,11 @@ def evaluate(sample_dir: Path, ground_truth_path: Path) -> int:
             f"OCR={ocr_result['avg_confidence']*100:>4.0f}% "
             f"({elapsed:>4.1f}s)"
         )
+        if verbose:
+            print(f"      raw OCR ({len(ocr_result['lines'])} lines):")
+            for line, conf in zip(ocr_result["lines"], ocr_result["confidences"]):
+                print(f"        [{conf*100:>3.0f}%] {line}")
+            print()
 
     if images_processed == 0:
         print()
@@ -196,8 +220,14 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sample-dir", default="sample_labels", type=Path)
     parser.add_argument("--ground-truth", default="ground_truth.json", type=Path)
+    parser.add_argument(
+        "-v", "--verbose", action="store_true",
+        help="Dump raw OCR lines + per-line confidence for each image. "
+             "Useful for diagnosing why a particular field extraction "
+             "failed (e.g. fragmented warning text).",
+    )
     args = parser.parse_args(argv)
-    return evaluate(args.sample_dir, args.ground_truth)
+    return evaluate(args.sample_dir, args.ground_truth, verbose=args.verbose)
 
 
 if __name__ == "__main__":
