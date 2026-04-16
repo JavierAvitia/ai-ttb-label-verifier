@@ -35,14 +35,7 @@ from typing import Optional
 
 import cv2
 import numpy as np
-import torch
 from PIL import Image
-
-# Limit PyTorch thread pool to reduce memory overhead on constrained
-# environments (Streamlit Cloud's 1 GB free tier). The default uses
-# all CPU cores, which allocates large per-thread buffers that push
-# peak RSS past 1 GB when combined with EasyOCR model weights.
-torch.set_num_threads(2)
 
 # easyocr is imported lazily inside _get_reader() so that importing this
 # module is cheap (matters for unit tests and CLI tools that don't run OCR).

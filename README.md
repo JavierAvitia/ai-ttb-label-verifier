@@ -31,7 +31,7 @@ It directly addresses the stakeholder concerns from the project brief:
 | **Preprocessing** | OpenCV (headless) | CLAHE + Gaussian blur + optional deskew handles glare, angles, low contrast |
 | **Matching** | RapidFuzz + regex | Fuzzy for brand/class/producer; numeric comparison for ABV / net contents; presence + caps check for warning |
 | **Tabular display & export** | Pandas | Results tables and one-click CSV download |
-| **Deployment** | Streamlit Community Cloud | Free, one-click from GitHub, public URL, zero ops |
+| **Deployment** | Docker on Render.com | Full control over system deps and memory; Streamlit Cloud's 1 GB free tier OOMs during EasyOCR + PyTorch model loading |
 
 ### Why *not* the alternatives
 
@@ -42,9 +42,10 @@ It directly addresses the stakeholder concerns from the project brief:
   vendor pilot died on this exact issue.
 - **No database** — Marcus confirmed no PII concerns for the prototype;
   everything is in-memory per session.
-- **No Docker in the default path** — Streamlit Cloud handles deployment.
-  A `Dockerfile` is included as an enterprise-deployment signal but not
-  required to run the app.
+- **No Streamlit Community Cloud** — the free tier's 1 GB RAM
+  limit consistently OOMs during EasyOCR + PyTorch model loading.
+  Docker on Render.com gives reliable CPU resources and full
+  control over system dependencies.
 
 ---
 
@@ -85,37 +86,44 @@ The first launch downloads the EasyOCR detection + recognition models
 (~100 MB) and caches them under `~/.EasyOCR/`. Subsequent launches load
 the model in seconds.
 
-### Deployed — Streamlit Community Cloud
+### Deployed — Render.com (recommended)
+
+Docker on Render.com is the recommended deployment path. Streamlit
+Community Cloud's 1 GB free tier consistently OOMs during EasyOCR +
+PyTorch model loading — the build succeeds but the app hangs at
+startup. Render gives full Docker control over system dependencies
+and reliable CPU resources for local OCR inference.
 
 1. Push this repo to GitHub.
-2. At [share.streamlit.io](https://share.streamlit.io) → New app → point
-   it at the repo, branch, and `app.py`.
-3. Under **Advanced settings**, set Python version to **3.11**.
-4. The first cold-start downloads the OCR models (~30s) — subsequent
-   sessions are fast.
+2. On [render.com](https://render.com) → **New +** → **Web Service**.
+3. Connect the GitHub repo, select **Docker** as the runtime.
+4. Leave build/start commands blank (the `Dockerfile` handles both).
+5. Select the **Free** plan (750 CPU-hours/month — sufficient for a POC).
+6. Click **Create Web Service**.
 
-> **Memory note:** Streamlit Cloud's free tier provides 1 GB RAM.
-> EasyOCR + PyTorch CPU consume ~600–800 MB resident. The app limits
-> `torch` threads to 2 and batch concurrency to 2 workers to stay
-> within budget. If the free tier OOMs on very large images, use the
-> Docker deployment below instead.
+The first build takes ~10–15 minutes (downloads PyTorch + EasyOCR
+models). Subsequent deploys are faster via Docker layer caching.
+
+> **Cold-start note:** the free tier sleeps after ~15 min of inactivity.
+> First visit after sleep takes 30–90 seconds while OCR models reload.
 
 > Live URL: _add the deployed URL here once published._
 
-### Docker (recommended for reliability)
-
-The included `Dockerfile` uses `python:3.11-slim` and installs all
-system dependencies. This is the most reliable deployment path and
-works on any container host (Render, Railway, Fly.io, etc.):
+### Docker (local)
 
 ```bash
 docker build -t ttb-label-verifier .
 docker run -p 8501:8501 ttb-label-verifier
 ```
 
-On **Render.com** (free tier): create a new Web Service, point it at
-the repo, select "Docker" as the environment, and it will build and
-deploy automatically.
+### Why Render over Streamlit Cloud
+
+| Concern | Streamlit Cloud | Render + Docker |
+|---|---|---|
+| EasyOCR + PyTorch memory | 1 GB shared; OOMs during model load | Full container resources; reliable startup |
+| System dependencies | Mixed Debian base; apt conflicts | `python:3.11-slim`; pinned everything |
+| Reproducibility | Platform-managed Python + deps | Dockerfile locks the entire stack |
+| Senior-engineer signal | "It deploys" | Thoughtful infra decision documented |
 
 ### Evaluation harness
 
@@ -142,7 +150,9 @@ ai-ttb-label-verifier/
 ├── ground_truth.json   # Per-image expected values for evaluation
 ├── sample_labels/      # AI-generated test label images (realistic bottle photos)
 ├── requirements.txt
-├── Dockerfile          # Optional containerized deploy
+├── runtime.txt         # Python 3.11 for Streamlit Cloud fallback
+├── Dockerfile          # Docker deploy (Render.com, Railway, etc.)
+├── .dockerignore       # Keeps Docker context lean
 └── .streamlit/config.toml
 ```
 
