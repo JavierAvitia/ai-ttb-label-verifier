@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from io import BytesIO
 
 import pandas as pd
@@ -159,9 +160,9 @@ def _render_field_table(fields) -> None:
 
 def _render_verdict_badge(verdict: str) -> str:
     color = {
-        VERDICT_APPROVE: "#1f883d",
-        VERDICT_REVIEW: "#bf8700",
-        VERDICT_REJECT: "#cf222e",
+        VERDICT_APPROVE: "#22C55E",
+        VERDICT_REVIEW: "#F4B400",
+        VERDICT_REJECT: "#DC2626",
     }.get(verdict, "#6e7781")
     return (
         f"<span style='background-color:{color}; color:white; padding:4px 10px; "
@@ -339,7 +340,7 @@ def main() -> None:
         st.download_button(
             "📥 Download batch results as CSV",
             data=results_to_csv(results),
-            file_name="ttb_label_verification_results.csv",
+            file_name=f"ttb_label_verification_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
             mime="text/csv",
         )
 
