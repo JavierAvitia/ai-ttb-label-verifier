@@ -304,6 +304,12 @@ def extract_text(
         else:
             all_lines = pass1
 
+    # Unfiltered text preserves low-confidence numeric tokens (e.g. "12" on
+    # tilted/curved labels) that _filter_noise would otherwise drop. Used
+    # only as a last-resort input for strict numeric-field extraction when
+    # the filtered text didn't yield a match; see matcher.extract_fields.
+    unfiltered_text = "\n".join(t for t, _ in all_lines)
+
     # Filter noise AFTER merging both passes.
     clean_lines = _filter_noise(all_lines)
 
@@ -318,6 +324,7 @@ def extract_text(
         "avg_confidence": avg,
         "processing_time": time.perf_counter() - t0,
         "raw_results": clean_lines,
+        "unfiltered_text": unfiltered_text,
     }
 
 

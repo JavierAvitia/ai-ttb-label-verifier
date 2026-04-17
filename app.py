@@ -177,7 +177,11 @@ def process_single_label(
     t0 = time.perf_counter()
     pil_img = Image.open(BytesIO(image_bytes))
     ocr_result = ocr.extract_text(pil_img)
-    extracted = extract_fields(ocr_result["full_text"], ocr_result["lines"])
+    extracted = extract_fields(
+        ocr_result["full_text"],
+        ocr_result["lines"],
+        unfiltered_text=ocr_result.get("unfiltered_text"),
+    )
     fields = validate_fields(extracted, expected)
     verdict = overall_verdict(fields)
     return VerificationResult(

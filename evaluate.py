@@ -138,7 +138,11 @@ def evaluate(sample_dir: Path, ground_truth_path: Path, verbose: bool = False) -
         try:
             t0 = time.perf_counter()
             ocr_result = ocr.extract_text(str(path))
-            extracted = extract_fields(ocr_result["full_text"], ocr_result["lines"])
+            extracted = extract_fields(
+                ocr_result["full_text"],
+                ocr_result["lines"],
+                unfiltered_text=ocr_result.get("unfiltered_text"),
+            )
             fields = validate_fields(extracted, expected)
             verdict = overall_verdict(fields)
             elapsed = time.perf_counter() - t0

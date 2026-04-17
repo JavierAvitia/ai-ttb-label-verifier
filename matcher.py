@@ -98,11 +98,8 @@ def _norm(s: str) -> str:
     return " ".join((s or "").lower().split())
 
 
-def extract_abv(text: str) -> Optional[dict]:
-    """Pull the first ABV percentage from text. Also captures proof if present.
-
-    Returns {'percent': float, 'proof': float|None, 'raw': str} or None.
-    """
+def _extract_abv_from(text: str) -> Optional[dict]:
+    """Core ABV extraction — strict regex + alcohol-keyword context scoring."""
     if not text:
         return None
     # Prefer percent values that occur near alcohol-related context to
@@ -129,15 +126,26 @@ def extract_abv(text: str) -> Optional[dict]:
     return {"percent": pct, "proof": proof, "raw": raw}
 
 
-def extract_net_contents(text: str) -> Optional[dict]:
-    """Pull the most-specific net-contents value (volume + unit) from text.
+def extract_abv(text: str, fallback_text: Optional[str] = None) -> Optional[dict]:
+    """Pull the first ABV percentage from text. Also captures proof if present.
 
-    OCR noise frequently produces stray short matches like 'oL' or '1L'
-    fragmented out of the warning text or background graphics. We collect
-    every regex hit and return the one with the longest raw span — the
-    real label value ('12 FL OZ', '750 ml') is almost always longer than
-    the spurious fragments.
+    Returns {'percent': float, 'proof': float|None, 'raw': str} or None.
+
+    `fallback_text` (optional) is searched with the identical strict regex
+    and context-scoring only if the primary `text` yields no match. This
+    recovers numeric tokens that the OCR noise filter would drop on
+    tilted/curved labels, without weakening the primary match path.
     """
+    result = _extract_abv_from(text)
+    if result is not None:
+        return result
+    if fallback_text and fallback_text != text:
+        return _extract_abv_from(fallback_text)
+    return None
+
+
+def _extract_net_contents_from(text: str) -> Optional[dict]:
+    """Core net-contents extraction — strict regex + longest-span tiebreak."""
     if not text:
         return None
     # Common OCR error: zero for capital-O in unit strings (e.g. "12 FL 0Z").
@@ -154,6 +162,33 @@ def extract_net_contents(text: str) -> Optional[dict]:
     if unit in ("floz",):
         unit = "fl oz"
     return {"value": value, "unit": unit, "raw": best.group(0)}
+
+
+def extract_net_contents(
+    text: str,
+    fallback_text: Optional[str] = None,
+) -> Optional[dict]:
+    """Pull the most-specific net-contents value (volume + unit) from text.
+
+    OCR noise frequently produces stray short matches like 'oL' or '1L'
+    fragmented out of the warning text or background graphics. We collect
+    every regex hit and return the one with the longest raw span — the
+    real label value ('12 FL OZ', '750 ml') is almost always longer than
+    the spurious fragments.
+
+    `fallback_text` (optional) is searched with the identical strict regex
+    only if the primary `text` yields no match. This recovers numeric
+    tokens that the OCR noise filter would drop on tilted/curved labels
+    (e.g. a low-confidence "12" preceding a surviving "FL OZ"), without
+    broadening the regex or weakening the `(?<![\\(\\d.])` guard against
+    matching warning-body numbering like "(1) According to …".
+    """
+    result = _extract_net_contents_from(text)
+    if result is not None:
+        return result
+    if fallback_text and fallback_text != text:
+        return _extract_net_contents_from(fallback_text)
+    return None
 
 
 _WARNING_SENTINELS = (
@@ -296,7 +331,11 @@ def extract_warning(text: str) -> dict:
     }
 
 
-def extract_fields(ocr_text: str, ocr_lines: Optional[list[str]] = None) -> dict:
+def extract_fields(
+    ocr_text: str,
+    ocr_lines: Optional[list[str]] = None,
+    unfiltered_text: Optional[str] = None,
+) -> dict:
     """Bundle the per-field extractors into a single dict.
 
     The matcher does *not* try to identify which line is the brand vs.
@@ -306,11 +345,17 @@ def extract_fields(ocr_text: str, ocr_lines: Optional[list[str]] = None) -> dict
     `line_count` is exposed so downstream checks can soften their verdict
     when OCR yield is suspiciously low (e.g. tightly cropped bottle
     photos that miss whole regions of the label).
+
+    `unfiltered_text` (optional) is the pre-noise-filter OCR output, used
+    only as a last-resort fallback for strict numeric extraction (ABV,
+    net contents) when the filtered text yields no match. Fuzzy fields
+    continue to see only the filtered text so their match scores are
+    unaffected.
     """
     lines = ocr_lines or []
     return {
-        "abv": extract_abv(ocr_text),
-        "net_contents": extract_net_contents(ocr_text),
+        "abv": extract_abv(ocr_text, fallback_text=unfiltered_text),
+        "net_contents": extract_net_contents(ocr_text, fallback_text=unfiltered_text),
         "warning": extract_warning(ocr_text),
         "full_text": ocr_text,
         "lines": lines,
