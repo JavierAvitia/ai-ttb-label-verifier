@@ -9,20 +9,26 @@ control.
 
 ## Required filenames
 
-The current ground-truth set is built around **Stone's Throw IPA** (a
-12 fl oz beer), with one imported French wine and one beer with no warning
-to round out the failure-mode coverage. To populate this directory:
+The ground-truth set spans all three beverage types — Beer / Malt
+Beverage (Stone's Throw IPA family, one unlabeled craft beer), Wine
+(one imported Bordeaux plus one multi-label stress test), and Distilled
+Spirits (three Old Tom Distillery bourbon shots at varying perspectives).
+To populate this directory:
 
-| Filename | Scenario |
-|---|---|
-| `perfect_label.jpg` | STONE'S THROW IPA, sans-serif, GOVERNMENT WARNING in ALL CAPS, straight-on (baseline) |
-| `angled_glare.jpg` | Same content, ~20° tilt with visible glare (preprocessing test) |
-| `warning_violation_titlecase.jpg` | "Stone's Throw" (serif), warning header reads "Government Warning:" — title case violation |
-| `brand_caps_mismatch.jpg` | "Stone's Throw" (title case on label) vs "STONE'S THROW" in form — fuzzy match test |
-| `low_contrast.jpg` | STONE'S THROW IPA in light gray on off-white paper (OCR stress test) |
-| `stylized_font.jpg` | Stone's Throw IPA in connected cursive script (font robustness test) |
-| `imported_wine.jpg` | CHÂTEAU DE LA PAIX, Bordeaux 2020, 13.5% alc/vol, "Imported by WineCo, NY" — front label has no warning |
-| `missing_warning.jpg` | LOCAL CRAFT BEER, 12 FL OZ — no government warning anywhere on label |
+| Filename | Type | Scenario |
+|---|---|---|
+| `perfect_label.jpg` | Beer | STONE'S THROW IPA, sans-serif, GOVERNMENT WARNING in ALL CAPS, straight-on (baseline) |
+| `angled_glare.jpg` | Beer | Same content, ~20° tilt with visible glare (preprocessing test) |
+| `warning_violation_titlecase.jpg` | Beer | "Stone's Throw" (serif), warning header reads "Government Warning:" — title case violation |
+| `brand_caps_mismatch.jpg` | Beer | "Stone's Throw" (title case on label) vs "STONE'S THROW" in form — fuzzy match test |
+| `low_contrast.jpg` | Beer | STONE'S THROW IPA in light gray on off-white paper (OCR stress test) |
+| `stylized_font.jpg` | Beer | Stone's Throw IPA in connected cursive script (font robustness test) |
+| `imported_wine.jpg` | Wine | CHÂTEAU DE LA PAIX, Bordeaux 2020, 13.5% alc/vol, "Imported by WineCo, NY" — front label has no warning and no sulfite declaration (wine-specific miss) |
+| `missing_warning.jpg` | Beer | LOCAL CRAFT BEER, 12 FL OZ — no government warning anywhere on label |
+| `Old-Tom-Distillery-Bourbon.jpg` | Spirits | OLD TOM DISTILLERY Kentucky Straight Bourbon, Aged 4 Years, 45% / 90 proof, 750 mL — front-label shot with no visible warning (back-label only) |
+| `Old-Tom-Distillery-Bourbon-Warning.jpg` | Spirits | Same product, warning panel wrapping around the bottle curvature — exercises the OCR ceiling when text is perspective-distorted (ABV/net-contents digits fragment) |
+| `liquor-warning-visible.jpg` | Spirits | Upright flat bourbon shot with clean warning — the happy-path Distilled Spirits APPROVE case |
+| `multiple-labels-rotated.jpg` | Wine | Multi-product stress test — one photo containing 6+ rotated labels (GRITT, CRAFT BEER, ROK, JIM BEAM, CHÂTEAU DE LA ROCHE Cabernet Sauvignon); exercises correct REJECT for wrong-input photos |
 
 ## How to populate
 

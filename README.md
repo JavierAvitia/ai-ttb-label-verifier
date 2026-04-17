@@ -69,9 +69,11 @@ It directly addresses the stakeholder concerns from the project brief:
 - **Per-field side-by-side comparison** — every row shows
   `Expected · Found · Score · Status · Notes`. Notes explain *what* was
   found vs. *what* was expected, in plain English.
-- **Seven label fields** verified: brand, class/type, ABV, net contents,
-  producer/bottler, country of origin (when populated), and the
-  government warning statement.
+- **Up to ten label fields verified** — seven baseline (brand,
+  class/type, ABV, net contents, producer/bottler, country of origin
+  when populated, government warning statement) plus up to three
+  type-specific additions (appellation of origin, age statement,
+  sulfite declaration) driven by the beverage-type selector.
 - **OCR confidence per image** — surfaced in the result header; a warning
   appears when confidence drops below 70%.
 - **Government warning check** — verifies textual presence, ALL CAPS
@@ -245,58 +247,75 @@ sample labels in `sample_labels/` (CPU, no GPU acceleration):
 
 ```
 ============================================================
-Evaluating against 8 ground-truth entries…
+Evaluating against 12 ground-truth entries…
 ============================================================
-  APPROVE perfect_label.png                   OCR=  87% (68.2s)
-  APPROVE angled_glare.png                    OCR=  80% (18.4s)
-  REVIEW  warning_violation_titlecase.png     OCR=  95% (13.3s)
-  APPROVE brand_caps_mismatch.png             OCR=  82% (12.5s)
-  REJECT  low_contrast.png                    OCR=  80% (10.2s)
-  REVIEW  stylized_font.png                   OCR=  91% (13.0s)
-  REJECT  imported_wine.png                   OCR=  75% (12.2s)
-  REJECT  missing_warning.png                 OCR=  91% (10.0s)
+  APPROVE perfect_label.png                   OCR=  87% (23.8s)
+  APPROVE angled_glare.png                    OCR=  80% (18.1s)
+  REVIEW  warning_violation_titlecase.png     OCR=  95% (13.5s)
+  APPROVE brand_caps_mismatch.png             OCR=  82% (12.4s)
+  REJECT  low_contrast.png                    OCR=  80% (10.1s)
+  REVIEW  stylized_font.png                   OCR=  91% (12.2s)
+  REJECT  imported_wine.png                   OCR=  75% (15.9s)
+  REJECT  missing_warning.png                 OCR=  91% (11.2s)
+  REJECT  Old-Tom-Distillery-Bourbon.png      OCR=  80% (17.9s)
+  REJECT  Old-Tom-Distillery-Bourbon-Warning  OCR=  81% (17.7s)
+  APPROVE liquor-warning-visible.png          OCR=  88% (15.2s)
+  REJECT  multiple-labels-rotated.png         OCR=  80% (31.7s)
 
 Field accuracy (correct / total)
 ------------------------------------------------------------
-  ABV                    1/1  (100%)
-  Brand Name             8/8  (100%)
-  Class/Type             5/5  (100%)
-  Country of Origin      1/1  (100%)
-  Government Warning     7/8  (88%)
-  Net Contents           7/8  (88%)
-  Producer/Bottler       1/1  (100%)
+  ABV                    3/5  (60%)
+  Age Statement          3/3  (100%)
+  Appellation of Origin  1/1  (100%)
+  Brand Name             12/12 (100%)
+  Class/Type             9/9  (100%)
+  Country of Origin      2/2  (100%)
+  Government Warning     10/12 (83%)
+  Net Contents           9/12  (75%)
+  Producer/Bottler       2/2  (100%)
+  Sulfite Declaration    2/2  (100%)
 
-Verdict accuracy: 7/8  (88%)
-Avg processing time: 19.72s (min 10.01s, max 68.24s)
+Verdict accuracy: 11/12  (92%)
+Avg processing time: 16.59s (min 10.1s, max 31.7s)
 ```
 
 | Image | OCR conf | Verdict | Expected | Notes |
 |---|---|---|---|---|
-| `perfect_label` | 87% | APPROVE | APPROVE ✓ | Brand + class + net contents all matched; warning caps confirmed via keyword vote |
+| `perfect_label` | 87% | APPROVE | APPROVE ✓ | Baseline beer — all fields cleanly extracted |
 | `angled_glare` | 80% | APPROVE | APPROVE ✓ | 20° tilt + glare; rotation pass recovers warning keywords in ALL CAPS |
-| `warning_violation_titlecase` | 95% | REVIEW | REVIEW ✓ | Title-case "Warning:" detected via keyword case-vote (0 uppercase, many titlecase hits) |
+| `warning_violation_titlecase` | 95% | REVIEW | REVIEW ✓ | Title-case "Government Warning:" detected via case-vote |
 | `brand_caps_mismatch` | 82% | APPROVE | APPROVE ✓ | "Stone's Throw" fuzzy-matches "STONE'S THROW" at ≥85 |
-| `low_contrast` | 80% | REJECT | REVIEW ✗ | Only 5 OCR lines; warning text invisible in low-contrast region |
-| `stylized_font` | 91% | REVIEW | REVIEW ✓ | Script font; brand fuzzy-matches in REVIEW band; warning keywords recovered |
-| `imported_wine` | 75% | REJECT | REJECT ✓ | Net contents mismatch (label ~50 mL ≠ expected 750 mL) + no warning |
-| `missing_warning` | 91% | REJECT | REJECT ✓ | No government warning detected (body score 16%) |
+| `low_contrast` | 80% | REJECT | REVIEW ✗ | Only 5 OCR lines; warning text invisible at this contrast |
+| `stylized_font` | 91% | REVIEW | REVIEW ✓ | Script brand drops into REVIEW band; warning keywords recovered |
+| `imported_wine` | 75% | REJECT | REJECT ✓ | Wine — net contents mismatch + no warning + no sulfite declaration |
+| `missing_warning` | 91% | REJECT | REJECT ✓ | Beer with no warning text anywhere (body score 16%) |
+| `Old-Tom-Distillery-Bourbon` | 80% | REJECT | REJECT ✓ | Spirits, front label only — no warning visible; Age Statement MATCH |
+| `Old-Tom-Distillery-Bourbon-Warning` | 81% | REJECT | REJECT ✓ | Curved bottle — ABV/net-contents digits lost to perspective distortion |
+| `liquor-warning-visible` | 88% | APPROVE | APPROVE ✓ | Flat spirits shot — all 6 fields + warning MATCH |
+| `multiple-labels-rotated` | 80% | REJECT | REJECT ✓ | Multi-label stress test — 6+ products in frame; correct "wrong input" rejection |
 
-Processing times (~10–68 s/image) include the rotation pass on pass 1
-(EasyOCR tests 4 orientations per region). The 68s outlier is
-`perfect_label` which has many detected regions; typical images run
-10–18s. On a GPU or in production with warm model, expect 2–4× faster.
+Processing times (~10–32 s/image) include the rotation pass on pass 1
+(EasyOCR tests 4 orientations per region). Typical images run 10–18s;
+the 32s outlier is `multiple-labels-rotated` which has ~80 detected
+regions across all the nested labels. On a GPU or in production with
+warm model, expect 2–4× faster.
 
-### Failure mode
+### Failure modes (documented)
 
-- **`low_contrast.png` REJECTed (expected REVIEW).** The bottle photo
-  has extremely faint text — OCR recovers only 5 lines (brand
-  fragments + "12 FL OZ"). The government warning is completely
-  invisible at this contrast level, so the warning body scores 18%
-  (below noise floor). The tool correctly reports "warning not
-  detected" — if the warning isn't readable, that's an honest
-  finding. Production mitigation: prompt agents to re-photograph
-  under better lighting, or accept REJECT as a conservative default
-  when critical text is unreadable.
+- **`low_contrast.png` REJECTed (expected REVIEW).** OCR recovers only
+  5 lines and the warning body scores 18% — below the noise floor. The
+  tool correctly reports "warning not detected". Production mitigation:
+  prompt the agent to retake under better lighting.
+- **`Old-Tom-Distillery-Bourbon-Warning.png` REJECTed (correctly).**
+  Heavy bottle curvature chops the `45` digit off ABV and splits
+  `750 -` from `mL`. Age Statement and warning body both MATCH — only
+  the two numeric digits on the curved edge fragment. Production
+  mitigation: retake with less curvature.
+- **`multiple-labels-rotated.png` REJECTed (correctly).** A single photo
+  contains 6+ products; OCR mixes text from all of them. ABV and net
+  contents mis-extract (`5%`, `1750 ML`) and warning body drops below
+  45% due to competing-label noise. Honest "wrong input" rejection —
+  the tool tells the agent to upload one label per photo.
 
 ### Common failure modes (by design)
 
