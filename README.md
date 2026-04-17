@@ -77,8 +77,11 @@ It directly addresses the stakeholder concerns from the project brief:
 - **Government warning check** — verifies textual presence, ALL CAPS
   header, and ≥45% body match to the official statement (calibrated
   to catch OCR-fragmented text while filtering noise).
-- **Beverage type selector** — Distilled Spirits / Wine / Beer; included
-  in CSV output (informational in the prototype).
+- **Beverage-type-aware rules** — the selector drives which checks run:
+  Wine adds a mandatory sulfite-declaration check (opt-out for rare
+  <10 ppm wines) plus an optional Appellation of Origin; Distilled
+  Spirits adds an optional Age Statement; Beer/Malt Beverage uses the
+  baseline check set. Type is included in CSV output.
 - **CSV export** — flattened one-row-per-field; opens cleanly in Excel.
 - **Graceful degradation** — individual file failures don't kill the batch;
   empty / unreadable images report a clear message.
@@ -194,6 +197,25 @@ sub-package, no model-switching abstractions, no premature engineering.
 | Country of Origin | Full-text search (skipped if blank in form) | `rapidfuzz.fuzz.token_sort_ratio` | ≥85 / 70 |
 | Government Warning | Whole-text `token_set_ratio` against official wording + sentinel-anchored window for display | (a) ALL CAPS check via case-vote on warning-keyword words (`ALCOHOLIC`, `BEVERAGES`, `DRINK`, …) — uppercase must dominate non-uppercase; tolerates OCR mixed-case artifacts like `SuRGEON`. (b) body ≥45% token_set match counts as present, ≥45% with caps OK is MATCH. Score band 16–33 = noise floor (genuinely missing); 48–73 = present but OCR-fragmented; ≥95 = clean read. | body ≥45 = present; ≥45 + caps = MATCH; <45 = MISMATCH |
 
+### Type-specific rules
+
+The Beverage Type selector drives per-type additions to the baseline
+seven-field check, reflecting TTB's distinct mandatory-info matrices for
+malt beverages, wine, and distilled spirits:
+
+| Beverage Type | Extra check | Required? | Source |
+|---|---|---|---|
+| **Wine** | Sulfite Declaration (fuzzy match for `CONTAINS SULFITES` / `SULFITES`, plus British spellings) | Mandatory (opt-out via sidebar checkbox for <10 ppm wines) | 27 CFR § 4.32a |
+| **Wine** | Appellation of Origin (e.g. "Napa Valley", "Bordeaux") | Optional; runs when the sidebar field is populated | TTB Wine Labeling |
+| **Distilled Spirits** | Age Statement (e.g. "Aged 4 Years") | Optional; runs when the sidebar field is populated (mandatory for some aged spirits — agent supplies when applicable) | TTB Distilled Spirits Labeling |
+| **Beer / Malt Beverage** | — | Baseline seven-field check; ABV is treated as optional (only checked when the application form provides it) | TTB Malt Beverage Labeling |
+
+Intentionally **out of scope** for this prototype (POC trade-off):
+color-additive disclosures (FD&C Yellow #5), aspartame / saccharin
+statements, commodity statements, and percent-foreign-wine. Catching
+these requires ingredient-level data the application form doesn't
+currently carry.
+
 ### OCR pipeline (`ocr.py`)
 
 Tuned against the AI-generated test labels:
@@ -303,9 +325,6 @@ Processing times (~10–68 s/image) include the rotation pass on pass 1
 - **No COLA system integration** — per the brief, this is a standalone
   POC. Production would auto-populate the sidebar from COLA records.
 - **English-language labels only** for the prototype.
-- **Beverage type selector is informational** — type-specific rule
-  variations (e.g. ABV display exceptions for certain beer / wine) are
-  a future enhancement.
 - **In a production deployment** with network access cleared by IT, a
   swap to Azure Computer Vision or AWS Textract would likely lift OCR
   accuracy 5–15% on hard images. The architecture (single `extract_text`

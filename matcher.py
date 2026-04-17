@@ -72,7 +72,25 @@ _FUZZY_THRESHOLDS = {
     "class_type": (85, 70),
     "producer": (80, 65),
     "country_of_origin": (85, 70),
+    # Appellation and age statement reuse class/type-like thresholds:
+    # both are short-to-medium proper-noun / numeric-noun strings that
+    # appear inline on the front of the label.
+    "appellation": (85, 70),
+    "age_statement": (85, 70),
 }
+
+
+# Variants the matcher accepts as a valid sulfite declaration. Covers the
+# US spelling, the British spelling, and the bare-word form that some
+# labels use when the phrase "CONTAINS" is visually separated from the
+# word "SULFITES". Matched via partial_ratio — short phrases are unstable
+# under token_sort_ratio.
+_SULFITE_VARIANTS = (
+    "contains sulfites",
+    "contains sulphites",
+    "sulfites",
+    "sulphites",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -296,6 +314,46 @@ def extract_warning(text: str) -> dict:
     }
 
 
+def extract_sulfite_declaration(text: str) -> dict:
+    """Detect a sulfite declaration (mandatory on wine labels).
+
+    Returns {'present': bool, 'score': float, 'snippet': str}.
+
+    Uses `partial_ratio` rather than `token_sort_ratio` because the target
+    phrases are short (as little as 9 characters for "sulfites"); token
+    sort over the whole OCR text is too noisy at that length. We score
+    each variant independently and keep the best; `present` flips when
+    the best score clears the REVIEW threshold.
+    """
+    if not text:
+        return {"present": False, "score": 0.0, "snippet": ""}
+    norm = _norm(text)
+    best_score = 0.0
+    best_variant = ""
+    for variant in _SULFITE_VARIANTS:
+        score = fuzz.partial_ratio(variant, norm)
+        if score > best_score:
+            best_score = score
+            best_variant = variant
+    # Anchor a display window around the best match when the phrase is
+    # actually present — falls back to an empty snippet when the text
+    # doesn't contain the word at all.
+    snippet = ""
+    if best_score >= 70 and best_variant:
+        # Find the anchor word inside the normalised text, ±30 chars.
+        anchor = best_variant.split()[-1]  # "sulfites" / "sulphites"
+        idx = norm.find(anchor)
+        if idx >= 0:
+            start = max(0, idx - 30)
+            end = min(len(norm), idx + len(anchor) + 30)
+            snippet = norm[start:end].strip()
+    return {
+        "present": bool(best_score >= 70),
+        "score": float(best_score),
+        "snippet": snippet,
+    }
+
+
 def extract_fields(ocr_text: str, ocr_lines: Optional[list[str]] = None) -> dict:
     """Bundle the per-field extractors into a single dict.
 
@@ -312,6 +370,7 @@ def extract_fields(ocr_text: str, ocr_lines: Optional[list[str]] = None) -> dict
         "abv": extract_abv(ocr_text),
         "net_contents": extract_net_contents(ocr_text),
         "warning": extract_warning(ocr_text),
+        "sulfite": extract_sulfite_declaration(ocr_text),
         "full_text": ocr_text,
         "lines": lines,
         "line_count": len(lines),
@@ -528,13 +587,48 @@ def _check_warning(extracted: dict, ocr_line_count: int = 0) -> FieldResult:
     )
 
 
+def _check_sulfite_declaration(extracted: dict) -> FieldResult:
+    """Verify presence of a sulfite declaration on wine labels.
+
+    Wine labels must carry a sulfite declaration when the beverage
+    contains ≥10 ppm sulfites (effectively all commercial wine — see
+    27 CFR § 4.32a). The exact phrasing allowed by TTB is "CONTAINS
+    SULFITES" (or "CONTAINS [specific sulfite]"); we also accept the
+    British spelling and the bare word to stay robust under OCR noise.
+    """
+    sulfite = extracted.get("sulfite") or {}
+    score = float(sulfite.get("score", 0.0) or 0.0)
+    snippet = sulfite.get("snippet", "") or ""
+    if score >= 85:
+        return FieldResult(
+            "Sulfite Declaration", "Required on wine labels",
+            snippet or "contains sulfites", score, STATUS_MATCH,
+            f"Sulfite declaration detected ({score:.0f}%) — required for wine.",
+        )
+    if score >= 70:
+        return FieldResult(
+            "Sulfite Declaration", "Required on wine labels",
+            snippet or "(fragmentary match)", score, STATUS_REVIEW,
+            f"Possible sulfite declaration ({score:.0f}%) — verify visually.",
+        )
+    return FieldResult(
+        "Sulfite Declaration", "Required on wine labels", "(not found)",
+        score, STATUS_MISMATCH,
+        "Sulfite declaration not found — mandatory on wine labels per "
+        "27 CFR § 4.32a when the wine contains ≥10 ppm sulfites.",
+    )
+
+
 def validate_fields(extracted: dict, expected: dict) -> list[FieldResult]:
     """Run each field check in a stable, predictable order.
 
     `expected` keys (all optional except brand): brand, class_type, abv,
-    net_contents, producer, country_of_origin, check_warning.
+    net_contents, producer, country_of_origin, check_warning,
+    beverage_type, appellation (wine), age_statement (spirits),
+    check_sulfite (wine).
     """
     full_text = extracted.get("full_text", "") or ""
+    beverage_type = (expected.get("beverage_type") or "").strip()
     results: list[FieldResult] = []
 
     brand_result = _check_fuzzy_field(
@@ -566,7 +660,21 @@ def validate_fields(extracted: dict, expected: dict) -> list[FieldResult]:
         results.append(_check_fuzzy_field(
             "class_type", expected.get("class_type", ""), full_text, "Class/Type",
         ))
+    # Wine: optional appellation of origin (e.g. "Napa Valley", "Bordeaux").
+    # When the user fills this in, it must appear on the label.
+    if beverage_type == "Wine" and (expected.get("appellation") or "").strip():
+        results.append(_check_fuzzy_field(
+            "appellation", expected["appellation"], full_text,
+            "Appellation of Origin",
+        ))
     results.append(_check_abv(expected.get("abv", ""), extracted.get("abv")))
+    # Distilled Spirits: optional age statement (required for some aged
+    # spirits, e.g. whiskey under 4 years old). Runs only when provided.
+    if beverage_type == "Distilled Spirits" and (expected.get("age_statement") or "").strip():
+        results.append(_check_fuzzy_field(
+            "age_statement", expected["age_statement"], full_text,
+            "Age Statement",
+        ))
     results.append(_check_net_contents(
         expected.get("net_contents", ""),
         extracted.get("net_contents"),
@@ -588,6 +696,11 @@ def validate_fields(extracted: dict, expected: dict) -> list[FieldResult]:
             extracted.get("warning", {}),
             ocr_line_count=int(extracted.get("line_count", 0) or 0),
         ))
+    # Wine: sulfite declaration is mandatory when sulfites ≥10 ppm
+    # (effectively all commercial wine). Mirrors the warning opt-out so
+    # agents can skip it for the rare <10 ppm case.
+    if beverage_type == "Wine" and expected.get("check_sulfite", True):
+        results.append(_check_sulfite_declaration(extracted))
     return results
 
 
