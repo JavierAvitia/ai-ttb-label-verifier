@@ -183,5 +183,24 @@
       "warning_caps_ok": false,
       "expected_verdict": "REJECT"
     }
+  },
+  "liquor-warning-visible.jpg": {
+    "_notes": "OLD TOM DISTILLERY upright bottle shot with the full label centered and the government warning visible and readable. All Distilled Spirits mandatory fields present: Brand, Class/Type, Age Statement, ABV (45% ALC/VOL), proof (90 PROOF), Net Contents (750 mL), and the warning statement. Flat perspective — every field should OCR cleanly. Expected verdict: APPROVE.",
+    "expected": {
+      "beverage_type": "Distilled Spirits",
+      "brand": "OLD TOM DISTILLERY",
+      "class_type": "Kentucky Straight Bourbon Whiskey",
+      "abv": "45%",
+      "net_contents": "750 mL",
+      "producer": "",
+      "country_of_origin": "",
+      "age_statement": "Aged 4 Years",
+      "check_warning": true
+    },
+    "ground_truth": {
+      "warning_present": true,
+      "warning_caps_ok": true,
+      "expected_verdict": "APPROVE"
+    }
   }
 }
