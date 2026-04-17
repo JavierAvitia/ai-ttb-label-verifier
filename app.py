@@ -300,13 +300,33 @@ def _sidebar_form() -> dict:
         "Beverage Type",
         BEVERAGE_TYPES,
         index=0,
-        help="Informational in this prototype. Type-specific rule "
-             "variations are noted as a future enhancement.",
+        help="Drives type-specific rules: Wine adds a sulfite-declaration "
+             "check (mandatory) and an optional Appellation of Origin; "
+             "Distilled Spirits adds an optional Age Statement; Beer "
+             "uses the baseline check set.",
     )
     brand = st.sidebar.text_input("Brand Name", value="OLD TOM DISTILLERY")
     class_type = st.sidebar.text_input(
         "Class / Type", value="Kentucky Straight Bourbon Whiskey",
     )
+    # Type-specific optional fields. Rendered immediately below Class/Type
+    # so they read as a natural extension of the product identity.
+    appellation = ""
+    age_statement = ""
+    if beverage_type == "Wine":
+        appellation = st.sidebar.text_input(
+            "Appellation of Origin",
+            value="",
+            help="Optional. If provided (e.g. 'Napa Valley', 'Bordeaux'), "
+                 "it must appear on the label.",
+        )
+    elif beverage_type == "Distilled Spirits":
+        age_statement = st.sidebar.text_input(
+            "Age Statement",
+            value="",
+            help="Optional. Required for some aged spirits (e.g. 'Aged 4 "
+                 "Years'). When provided, it must appear on the label.",
+        )
     abv = st.sidebar.text_input("Alcohol Content (ABV)", value="45%")
     net_contents = st.sidebar.text_input("Net Contents", value="750 mL")
     producer = st.sidebar.text_input(
@@ -325,6 +345,15 @@ def _sidebar_form() -> dict:
         "Verify Government Warning statement",
         value=True,
     )
+    # Wine-only opt-out, mirrored after the warning pattern above.
+    check_sulfite = True
+    if beverage_type == "Wine":
+        check_sulfite = st.sidebar.checkbox(
+            "Verify sulfite declaration (required for wine)",
+            value=True,
+            help="Uncheck only for the rare <10 ppm wine that is exempt "
+                 "under 27 CFR § 4.32a.",
+        )
 
     st.sidebar.markdown("---")
     with st.sidebar.expander("How it works"):
@@ -351,7 +380,10 @@ def _sidebar_form() -> dict:
         "net_contents": net_contents.strip(),
         "producer": producer.strip(),
         "country_of_origin": country.strip(),
+        "appellation": appellation.strip(),
+        "age_statement": age_statement.strip(),
         "check_warning": check_warning,
+        "check_sulfite": check_sulfite,
     }
 
 

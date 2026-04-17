@@ -85,6 +85,14 @@ def _field_matched(field_name: str, status: str, ground_truth: dict) -> bool:
         if not caps_ok:
             return status in (STATUS_REVIEW,)
         return status == STATUS_MATCH
+    if field_name == "Sulfite Declaration":
+        # Inverse scoring — when the label has no sulfite statement we
+        # *want* the tool to MISMATCH. Default assumes present when the
+        # fixture doesn't specify, so pre-existing wines aren't penalized.
+        sulfite_present = ground_truth.get("sulfite_present", True)
+        if not sulfite_present:
+            return status == "mismatch"
+        return status in (STATUS_MATCH, STATUS_REVIEW)
     return status in (STATUS_MATCH, STATUS_REVIEW)
 
 
