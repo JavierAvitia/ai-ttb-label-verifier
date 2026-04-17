@@ -145,5 +145,24 @@
       "warning_caps_ok": false,
       "expected_verdict": "REJECT"
     }
+  },
+  "Old-Tom-Distillery-Bourbon.jpg": {
+    "_notes": "OLD TOM DISTILLERY — Kentucky Straight Bourbon Whiskey, Aged 4 Years, 90 proof (45% ABV), 750 mL. Distilled Spirits fixture exercising the Age Statement branch. The photo is a front-of-bottle shot with no visible government warning (typically on the back label). Expected verdict: REJECT (missing warning).",
+    "expected": {
+      "beverage_type": "Distilled Spirits",
+      "brand": "OLD TOM DISTILLERY",
+      "class_type": "Kentucky Straight Bourbon Whiskey",
+      "abv": "45%",
+      "net_contents": "750 mL",
+      "producer": "",
+      "country_of_origin": "",
+      "age_statement": "Aged 4 Years",
+      "check_warning": true
+    },
+    "ground_truth": {
+      "warning_present": false,
+      "warning_caps_ok": false,
+      "expected_verdict": "REJECT"
+    }
   }
 }
