@@ -243,10 +243,11 @@ def extract_warning(text: str) -> dict:
     """Detect the presence and capitalization of the government warning.
 
     Returns: {
-        'present': bool,            # warning text is recognizable in the OCR output
-        'header_caps_ok': bool,     # 'GOVERNMENT WARNING:' appears in ALL CAPS
-        'body_score': float,        # 0–100 fuzzy match of the body text
-        'extracted': str,           # the text window we considered
+        'present': bool,               # warning text is recognizable in the OCR output
+        'header_caps_ok': bool,        # 'GOVERNMENT WARNING:' appears in ALL CAPS
+        'header_phrase_detected': bool,# 'government' / 'warning' appears at all (any case)
+        'body_score': float,           # 0–100 fuzzy match of the body text
+        'extracted': str,              # the text window we considered
     }
 
     Detection strategy: token_set_ratio against the entire normalized OCR
@@ -262,7 +263,10 @@ def extract_warning(text: str) -> dict:
     is detected.
     """
     if not text:
-        return {"present": False, "header_caps_ok": False, "body_score": 0.0, "extracted": ""}
+        return {
+            "present": False, "header_caps_ok": False,
+            "header_phrase_detected": False, "body_score": 0.0, "extracted": "",
+        }
 
     # Header caps check is a layered decision. The classic regex for the
     # adjacent phrase 'GOVERNMENT WARNING' rarely fires on rotated small-
@@ -279,6 +283,13 @@ def extract_warning(text: str) -> dict:
         header_caps_ok = False
     else:
         header_caps_ok = bool(_HEADER_CAPS_RE.search(text))
+
+    # Did OCR actually surface the header phrase at all? Without this
+    # signal, the case-vote above can't distinguish "header was in title
+    # case" from "header wasn't OCR'd and only lowercase body text was".
+    header_phrase_detected = bool(
+        re.search(r"\b(government|warning)\b", text, re.IGNORECASE)
+    )
 
     # Whole-text token_set_ratio: order-independent, ignores duplicates,
     # and (critically) is far less prone to false-positive scores from
@@ -309,6 +320,7 @@ def extract_warning(text: str) -> dict:
     return {
         "present": bool(present),
         "header_caps_ok": header_caps_ok,
+        "header_phrase_detected": header_phrase_detected,
         "body_score": body_score,
         "extracted": extracted_window.strip(),
     }
@@ -558,6 +570,7 @@ def _check_warning(extracted: dict, ocr_line_count: int = 0) -> FieldResult:
         )
     body_score = extracted.get("body_score", 0.0)
     caps_ok = extracted.get("header_caps_ok", False)
+    header_phrase_detected = extracted.get("header_phrase_detected", True)
     snippet = extracted.get("extracted", "")
     # MATCH threshold mirrors the present-threshold (45%) — once we have
     # both the caps-vote signal and the body fragments, the agent's
@@ -570,6 +583,20 @@ def _check_warning(extracted: dict, ocr_line_count: int = 0) -> FieldResult:
             f"Header in ALL CAPS and body matches official text ({body_score:.0f}%). "
             "Note: OCR verifies text and capitalization only — bold, font size, "
             "and physical placement require visual review.",
+        )
+    # Header phrase wasn't OCR'd at all (small-print labels where only
+    # the body text was detected). The caps-vote heuristic can't tell us
+    # anything useful here — it's voting on body-only case, which is
+    # lowercase by design. If the body matched strongly, count as MATCH
+    # with a caveat rather than manufacturing a caps violation.
+    if not header_phrase_detected and body_score >= 70:
+        return FieldResult(
+            "Government Warning", "Required statement present",
+            snippet, body_score, STATUS_MATCH,
+            f"Body matches official text ({body_score:.0f}%); header phrase "
+            "'GOVERNMENT WARNING:' was not recovered by OCR (likely small "
+            "print). Recommend visual verification that the header is in "
+            "ALL CAPS.",
         )
     if not caps_ok:
         return FieldResult(

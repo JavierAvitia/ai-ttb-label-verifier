@@ -164,5 +164,43 @@
       "warning_caps_ok": false,
       "expected_verdict": "REJECT"
     }
+  },
+  "Old-Tom-Distillery-Bourbon-Warning.jpg": {
+    "_notes": "OLD TOM DISTILLERY companion image — same product but photographed with the warning panel wrapping around the bottle curvature. The warning, brand, class/type, and age-statement OCR through cleanly; however the 45% ABV digit and the 750 mL digit both fragment across curved perspective lines (OCR returns 'ALC/' + 'NOL' but no '45', and '750 -' split from 'mL'). This is a genuine OCR-ceiling case: a human reads it easily, EasyOCR cannot. Expected verdict: REJECT — the tool honestly reports it can't verify two mandatory fields, which in production would prompt the agent to retake the photo with less curvature.",
+    "expected": {
+      "beverage_type": "Distilled Spirits",
+      "brand": "OLD TOM DISTILLERY",
+      "class_type": "Kentucky Straight Bourbon Whiskey",
+      "abv": "45%",
+      "net_contents": "750 mL",
+      "producer": "",
+      "country_of_origin": "",
+      "age_statement": "Aged 4 Years",
+      "check_warning": true
+    },
+    "ground_truth": {
+      "warning_present": true,
+      "warning_caps_ok": false,
+      "expected_verdict": "REJECT"
+    }
+  },
+  "liquor-warning-visible.jpg": {
+    "_notes": "OLD TOM DISTILLERY upright bottle shot with the full label centered and the government warning visible and readable. All Distilled Spirits mandatory fields present: Brand, Class/Type, Age Statement, ABV (45% ALC/VOL), proof (90 PROOF), Net Contents (750 mL), and the warning statement. Flat perspective — every field should OCR cleanly. Expected verdict: APPROVE.",
+    "expected": {
+      "beverage_type": "Distilled Spirits",
+      "brand": "OLD TOM DISTILLERY",
+      "class_type": "Kentucky Straight Bourbon Whiskey",
+      "abv": "45%",
+      "net_contents": "750 mL",
+      "producer": "",
+      "country_of_origin": "",
+      "age_statement": "Aged 4 Years",
+      "check_warning": true
+    },
+    "ground_truth": {
+      "warning_present": true,
+      "warning_caps_ok": true,
+      "expected_verdict": "APPROVE"
+    }
   }
 }
