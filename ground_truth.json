@@ -202,5 +202,26 @@
       "warning_caps_ok": true,
       "expected_verdict": "APPROVE"
     }
+  },
+  "multiple-labels-rotated.jpg": {
+    "_notes": "Stress test: photo of a batch-print sheet showing 6+ different labels at varying rotations — CHATEAU DE LA ROCHE (Cabernet Sauvignon) is the dominant readable one, plus GRITT, CRAFT BEER, ROK, JIM BEAM WHISKEY thumbnails bleeding OCR noise into every field. This is exactly the 'wrong input' case the tool should reject: multiple products in one photo produce genuine mis-extractions — ABV fragments to '5%' (from '13.5% BY VOL./750 ML' splitting), net contents concatenates a stray '1' for '1750 ML', warning body drops below 45% because of competing label text, sulfite declaration appears only as 'CONTAINS' without 'SULFITES'. Expected verdict: REJECT — agents should be prompted to upload a single-label photo.",
+    "expected": {
+      "beverage_type": "Wine",
+      "brand": "CHATEAU DE LA ROCHE",
+      "class_type": "Cabernet Sauvignon",
+      "abv": "13.5%",
+      "net_contents": "750 mL",
+      "producer": "Global Vintners Inc.",
+      "country_of_origin": "France",
+      "appellation": "",
+      "check_warning": true,
+      "check_sulfite": true
+    },
+    "ground_truth": {
+      "warning_present": true,
+      "warning_caps_ok": true,
+      "sulfite_present": false,
+      "expected_verdict": "REJECT"
+    }
   }
 }
