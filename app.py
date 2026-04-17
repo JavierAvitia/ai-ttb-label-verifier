@@ -112,7 +112,7 @@ st.markdown(
         box-shadow: 0 4px 12px rgba(212, 160, 23, 0.3);
     }
     button[kind="primary"][disabled], button[data-testid="stBaseButton-primary"][disabled] {
-        opacity: 0.45 !important;
+        opacity: 0.65 !important;
         cursor: not-allowed !important;
         transform: none !important;
         box-shadow: none !important;
